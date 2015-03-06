@@ -1,4 +1,4 @@
-package main;
+package serialized;
 
 message FileMetadata {
 	optional int64 length = 1;
