@@ -1,15 +1,15 @@
-package serialized;
+package fffs_go;
 
 message FileMetadata {
 	optional int64 length = 1;
 	optional bytes md5 = 2;
-	optional uint64 creation_time = 3;
+	optional int64 creation_time = 3;
 }
 
 message DirEntry {
 	required string name = 1;
 	optional int32 type = 2;
-	optional string chunk_id = 3;
+	optional string chunk = 3;
 	optional FileMetadata metadata = 4;
 }
 

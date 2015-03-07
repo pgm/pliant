@@ -1,4 +1,4 @@
-package main
+package fffs_go
 
 import (
 	"fmt"
@@ -8,10 +8,14 @@ import (
 	"errors"
 	"code.google.com/p/go-uuid/uuid"
 	"strings"
+	"github.com/golang/protobuf/proto"
+	"crypto/md5"
+	"time"
 )
 
+
 type ChunkID string
-type ChunkType byte
+type ChunkType int32
 
 type IdVisitor func(Chunk ChunkID)
 type LabelVisitor func(Label string, Chunk ChunkID)
@@ -20,7 +24,7 @@ const (
 	DIR_TYPE ChunkType = iota
 	FILE_TYPE
 )
-
+/*
 type DirEntry struct {
 	Name  string
 	Type  ChunkType
@@ -43,6 +47,7 @@ type FileMetadata struct {
 	MD5          []byte
 	CreationTime uint64
 }
+*/
 
 type Transient interface {
 	GetReader() io.Reader
@@ -54,8 +59,8 @@ type Transient interface {
 // open questions:  What is the max size of a chunk?
 type ChunkService interface {
 	HasChunk(id ChunkID) (bool, error)
-	Read(id ChunkID, offset int, size int) (io.Reader, error)
-	Create(id ChunkID, data io.Reader) error
+	Read(id ChunkID, offset int64, size int64) (io.Reader, error)
+	Create(id ChunkID, data io.Reader) (int64, []byte, error)
 	Free(id ChunkID) error
 }
 
@@ -83,13 +88,17 @@ func (self *MemChunkService) HasChunk(id ChunkID) (bool, error) {
 	return hasKey, nil
 }
 
-func (self *MemChunkService) Read(id ChunkID, offset int, size int) (io.Reader, error) {
+func (self *MemChunkService) Read(id ChunkID, offset int64, size int64) (io.Reader, error) {
 	self.lock.Lock()
 	buffer, ok := self.table[id]
 	self.lock.Unlock()
 
 	if ok {
-		if offset+size > len(buffer) {
+		if size < 0 {
+			size = int64(len(buffer)) - offset
+		}
+
+		if offset+size > int64(len(buffer)) {
 			return nil, errors.New("Attempted read which would exceed bounds")
 		} else {
 			return bytes.NewReader(buffer[offset:offset+size]), nil
@@ -99,15 +108,18 @@ func (self *MemChunkService) Read(id ChunkID, offset int, size int) (io.Reader, 
 	}
 }
 
-func (self *MemChunkService) Create(id ChunkID, data io.Reader) error {
-	buffer := bytes.NewBuffer(make([]byte, 1000))
+func (self *MemChunkService) Create(id ChunkID, data io.Reader) (int64, []byte, error) {
+	buffer := bytes.NewBuffer(make([]byte, 0, 1000))
 	buffer.ReadFrom(data)
 
+	b := buffer.Bytes()
+
 	self.lock.Lock()
-	self.table[id] = buffer.Bytes()
+	self.table[id] = b
 	self.lock.Unlock()
 
-	return nil
+	hash := md5.Sum(b)
+	return int64(len(b)), hash[:], nil
 }
 
 func (self *MemChunkService) Free(id ChunkID) error {
@@ -265,7 +277,7 @@ func (self *Dir) cloneWithReplacement(newDirEntry *DirEntry, replaceExisting boo
 
 func (self *Dir) Get(name string) *DirEntry {
 	for i := range (self.Entries) {
-		if self.Entries[i].Name == name {
+		if self.Entries[i].GetName() == name {
 			return self.Entries[i]
 		}
 	}
@@ -310,7 +322,7 @@ func (self *RawFilesystem) FileExists(rootId ChunkID, path string) bool {
 		if readDirErr != nil {
 			panic("readdir failed")
 		}
-		dirId = dir.Get(parentDirNames[i]).Chunk
+		dirId = ChunkID(dir.Get(parentDirNames[i]).GetChunk())
 	}
 	dir, readDirErr := self.ReadDir(dirId)
 	if readDirErr != nil {
@@ -338,20 +350,20 @@ func (self *RawFilesystem) recursiveCloneDirWithReplacement(rootId ChunkID, pare
 		if entry == nil {
 			return INVALID_ID, errors.New("Path did not exist")
 		}
-		if entry.Type != DIR_TYPE {
+		if ChunkType(entry.GetType()) != DIR_TYPE {
 			return INVALID_ID, errors.New("Path was not a directory")
 		}
-		curDir, readDirErr = self.ReadDir(entry.Chunk)
+		curDir, readDirErr = self.ReadDir(ChunkID(entry.GetChunk()))
 		if readDirErr != nil {
 			return INVALID_ID, errors.New("Could not read dir")
 		}
-		parents = append(parents, entry.Chunk)
+		parents = append(parents, ChunkID(entry.GetChunk()))
 	}
 
 	var cloneErr error
 	for i := len(parents) ; i >= 0 ; i -- {
 		newParents[i], cloneErr = self.cloneDirWithReplacement(parents[i], newDirEntry, true)
-		newDirEntry = &DirEntry{Name: parentDirNames[i], Type: DIR_TYPE, Chunk: newParents[i]}
+		newDirEntry = &DirEntry{Name: proto.String(string(parentDirNames[i])), Type: proto.Int32(int32(DIR_TYPE)), Chunk: proto.String(string(newParents[i]))}
 		// Length uint64, 	MD5 [] byte CreationTime uint64
 		if cloneErr != nil {
 			return INVALID_ID, cloneErr
@@ -367,19 +379,49 @@ func NewRawFilesystem(chunks ChunkService, metadata ChunkService) *RawFilesystem
 }
 
 func PackDirEntries(dir *Dir) []byte {
-	panic("unimp")
+	data, err := proto.Marshal(dir)
+	if err != nil {
+		panic("Couldn't marshal Dir object")
+	}
+	return data
 }
 
 func UnpackDirEntries(r io.Reader) *Dir {
-	panic("unimp")
+	dest := &Dir{}
+	buffer := bytes.Buffer{}
+	_, readErr := buffer.ReadFrom(r)
+	if readErr != nil {
+		panic("Could not read")
+	}
+	err := proto.Unmarshal(buffer.Bytes(), dest)
+	if err != nil {
+		panic(fmt.Sprintf("Could not unmarshal dir: %s", err.Error()))
+	}
+
+	return dest
 }
 
 func PackFileMetadata(metadata *FileMetadata) []byte {
-	panic("unimp")
+	data, err := proto.Marshal(metadata)
+	if err != nil {
+		panic("Couldn't marshal metadata object")
+	}
+	return data
 }
 
 func UnpackFileMetadata(r io.Reader) *FileMetadata {
-	panic("unimp")
+	dest := &FileMetadata{}
+	buffer := bytes.Buffer{}
+	_, readErr := buffer.ReadFrom(r)
+	if readErr != nil {
+		panic("Could not read")
+	}
+	err := proto.Unmarshal(buffer.Bytes(), dest)
+	if err != nil {
+		panic(fmt.Sprintf("Could not unmarshal metadata: %s", err.Error()))
+	}
+
+	return dest
 }
 
 func (self * RawFilesystem) ReadDir(id ChunkID) (*Dir, error) {
@@ -398,7 +440,7 @@ func (self * RawFilesystem) GetFileMetadata(id ChunkID) (*FileMetadata, error) {
 	return UnpackFileMetadata(chunk), nil
 }
 
-func (self * RawFilesystem) ReadFile(id ChunkID, offset int, size int, buffer []byte) error {
+func (self * RawFilesystem) ReadFile(id ChunkID, offset int64, size int64, buffer []byte) error {
 	reader, err := self.chunks.Read(id, offset, size)
 	if err != nil {
 		return err
@@ -411,7 +453,7 @@ func (self * RawFilesystem) ReadFile(id ChunkID, offset int, size int, buffer []
 func (self * RawFilesystem) NewDir(dir *Dir) (ChunkID, error) {
 	var chunk []byte = PackDirEntries(dir)
 	id := NewChunkId()
-	err := self.chunks.Create(id, bytes.NewBuffer(chunk))
+	_, _, err := self.chunks.Create(id, bytes.NewBuffer(chunk))
 	if err != nil {
 		return INVALID_ID, err
 	}
@@ -419,11 +461,15 @@ func (self * RawFilesystem) NewDir(dir *Dir) (ChunkID, error) {
 }
 
 func (self * RawFilesystem) NewFile(content io.Reader) (ChunkID, error) {
-	var metadata FileMetadata
-
+	// FIXME
 	id := NewChunkId()
-	self.chunks.Create(id, content)
-	err := self.metadata.Create(id, bytes.NewBuffer(PackFileMetadata(&metadata)))
+	length, md5, createErr := self.chunks.Create(id, content)
+	if createErr != nil {
+		return INVALID_ID, createErr
+	}
+
+	metadata := FileMetadata{Length: proto.Int64(length), Md5: md5, CreationTime: proto.Int64(time.Now().Unix())}
+	_, _, err := self.metadata.Create(id, bytes.NewBuffer(PackFileMetadata(&metadata)))
 	if err != nil {
 		return INVALID_ID, err
 	}
@@ -436,7 +482,7 @@ type Filesystem interface {
 	MakeDir(label string, vpath string) error
 	Label(new_label string, existing_label string, vpath string) error
 	Rename(label string, existing_vpath string, new_vpath string) error
-	ReadFile(label string, vpath string, offset int, size int, buffer []byte) error
+	ReadFile(label string, vpath string, offset int64, size int64, buffer []byte) error
 	WriteFile(label string, vpath string, content io.Reader) error
 	Unlink(label string, vpath string) error
 	ReadDir(label string, vpath string) ([]DirEntry, error)
@@ -464,6 +510,10 @@ func (self *FilesystemImp) getLabelLock(label string) *sync.RWMutex {
 	return lock
 }
 
+func NewDirEntry(name string, chunk ChunkID, chunk_type ChunkType) *DirEntry {
+	return &DirEntry{Name: proto.String(string(name)), Chunk: proto.String(string(chunk)), Type: proto.Int32(int32(chunk_type))}
+}
+
 func (self *FilesystemImp) MakeDir(label string, vpath string) error {
 	wlock := self.getLabelLock(label)
 	wlock.Lock()
@@ -475,7 +525,7 @@ func (self *FilesystemImp) MakeDir(label string, vpath string) error {
 	}
 
 	parentPath, name := splitPathTo(vpath)
-	newRootId, cloneErr := self.fs.recursiveCloneDirWithReplacement(origRootId, parentPath, &DirEntry{Name: name, Chunk: EMPTY_DIR_ID, Type: DIR_TYPE}, false)
+	newRootId, cloneErr := self.fs.recursiveCloneDirWithReplacement(origRootId, parentPath, NewDirEntry(name, EMPTY_DIR_ID, DIR_TYPE), false)
 	if cloneErr != nil {
 		return cloneErr
 	}

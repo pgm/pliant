@@ -3,7 +3,7 @@
 // DO NOT EDIT!
 
 /*
-Package main is a generated protocol buffer package.
+Package fffs_go is a generated protocol buffer package.
 
 It is generated from these files:
 	data.proto
@@ -13,7 +13,7 @@ It has these top-level messages:
 	DirEntry
 	Dir
 */
-package main
+package fffs_go
 
 import proto "github.com/golang/protobuf/proto"
 import math "math"
@@ -23,10 +23,10 @@ var _ = proto.Marshal
 var _ = math.Inf
 
 type FileMetadata struct {
-	Length           *int64  `protobuf:"varint,1,opt,name=length" json:"length,omitempty"`
-	Md5              []byte  `protobuf:"bytes,2,opt,name=md5" json:"md5,omitempty"`
-	CreationTime     *uint64 `protobuf:"varint,3,opt,name=creation_time" json:"creation_time,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	Length           *int64 `protobuf:"varint,1,opt,name=length" json:"length,omitempty"`
+	Md5              []byte `protobuf:"bytes,2,opt,name=md5" json:"md5,omitempty"`
+	CreationTime     *int64 `protobuf:"varint,3,opt,name=creation_time" json:"creation_time,omitempty"`
+	XXX_unrecognized []byte `json:"-"`
 }
 
 func (m *FileMetadata) Reset()         { *m = FileMetadata{} }
@@ -47,7 +47,7 @@ func (m *FileMetadata) GetMd5() []byte {
 	return nil
 }
 
-func (m *FileMetadata) GetCreationTime() uint64 {
+func (m *FileMetadata) GetCreationTime() int64 {
 	if m != nil && m.CreationTime != nil {
 		return *m.CreationTime
 	}
@@ -57,7 +57,7 @@ func (m *FileMetadata) GetCreationTime() uint64 {
 type DirEntry struct {
 	Name             *string       `protobuf:"bytes,1,req,name=name" json:"name,omitempty"`
 	Type             *int32        `protobuf:"varint,2,opt,name=type" json:"type,omitempty"`
-	ChunkId          *string       `protobuf:"bytes,3,opt,name=chunk_id" json:"chunk_id,omitempty"`
+	Chunk            *string       `protobuf:"bytes,3,opt,name=chunk" json:"chunk,omitempty"`
 	Metadata         *FileMetadata `protobuf:"bytes,4,opt,name=metadata" json:"metadata,omitempty"`
 	XXX_unrecognized []byte        `json:"-"`
 }
@@ -80,9 +80,9 @@ func (m *DirEntry) GetType() int32 {
 	return 0
 }
 
-func (m *DirEntry) GetChunkId() string {
-	if m != nil && m.ChunkId != nil {
-		return *m.ChunkId
+func (m *DirEntry) GetChunk() string {
+	if m != nil && m.Chunk != nil {
+		return *m.Chunk
 	}
 	return ""
 }

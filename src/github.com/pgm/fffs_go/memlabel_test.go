@@ -1,4 +1,4 @@
-package main
+package fffs_go
 
 import (
 //	"testing"
@@ -7,7 +7,8 @@ import (
 
 //type MySuite struct{}
 
-var _ = Suite(&MySuite{})
+type MemlabelSuite struct{}
+var _ = Suite(&MemlabelSuite{})
 
 
 func assertHasLabel(c *C, svc LabelService, name string, expectation bool) {
@@ -16,7 +17,7 @@ func assertHasLabel(c *C, svc LabelService, name string, expectation bool) {
 	c.Assert(flag, Equals, expectation)
 }
 
-func (s *MySuite) TestAddRemoveLabel (c *C) {
+func (s *MemlabelSuite) TestAddRemoveLabel (c *C) {
 	svc := NewMemLabelService()
 	assertHasLabel(c, svc, "a", false)
 	svc.UpdateLabel("a", ChunkID("x"))
@@ -25,7 +26,7 @@ func (s *MySuite) TestAddRemoveLabel (c *C) {
 }
 
 
-func (s *MySuite) TestVisitEachLabel (c *C) {
+func (s *MemlabelSuite) TestVisitEachLabel (c *C) {
 	svc := NewMemLabelService()
 	svc.UpdateLabel("a", ChunkID("x"))
 	callCount := 0

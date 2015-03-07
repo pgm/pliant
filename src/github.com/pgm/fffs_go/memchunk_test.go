@@ -1,4 +1,4 @@
-package main
+package fffs_go
 
 import (
 	"testing"
@@ -10,9 +10,9 @@ import (
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
 
-type MySuite struct{}
+type MemChunkSuite struct{}
 
-var _ = Suite(&MySuite{})
+var _ = Suite(&MemChunkSuite{})
 
 /*
 func (s *MySuite) TestHelloWorld(c *C) {
@@ -28,7 +28,7 @@ func assertHasChunk(c *C, svc ChunkService, name ChunkID, expectation bool) {
 	c.Assert(flag, Equals, expectation)
 }
 
-func (s *MySuite) TestAddRemove (c *C) {
+func (s *MemChunkSuite) TestAddRemove (c *C) {
 	svc := NewMemChunkService()
 	assertHasChunk(c, svc, "a", false)
 	data := [...]byte{1, 2, 3}
@@ -58,7 +58,7 @@ func (s *MySuite) TestAddRemove (c *C) {
 }
 
 
-func (s *MySuite) TestVisitEach (c *C) {
+func (s *MemChunkSuite) TestVisitEach (c *C) {
 	svc := NewMemChunkService()
 	data := [...]byte{1, 2, 3}
 	svc.Create("a", bytes.NewBuffer(data[:]))
