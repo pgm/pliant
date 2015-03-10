@@ -13,7 +13,6 @@ import (
 	"time"
 )
 
-
 type ChunkID string
 type ChunkType int32
 
@@ -24,6 +23,7 @@ const (
 	DIR_TYPE ChunkType = iota
 	FILE_TYPE
 )
+
 /*
 type DirEntry struct {
 	Name  string
@@ -95,7 +95,7 @@ func (self *MemChunkService) Read(id ChunkID, offset int64, size int64) (io.Read
 
 	if ok {
 		if size < 0 {
-			size = int64(len(buffer)) - offset
+			size = int64(len(buffer))-offset
 		}
 
 		if offset+size > int64(len(buffer)) {
@@ -104,7 +104,7 @@ func (self *MemChunkService) Read(id ChunkID, offset int64, size int64) (io.Read
 			return bytes.NewReader(buffer[offset:offset+size]), nil
 		}
 	} else {
-		return nil, errors.New("No such ID")
+		return nil, errors.New(fmt.Sprintf("No such ID: '%s'", string(id)))
 	}
 }
 
@@ -255,8 +255,9 @@ type RawFilesystem struct {
 func (self *Dir) cloneWithReplacement(newDirEntry *DirEntry, replaceExisting bool) (*Dir, error) {
 	newEntries := make([]*DirEntry, 0, len(self.Entries))
 	found := false
-	for i := range (self.Entries) {
-		if self.Entries[i].Name == newDirEntry.Name {
+	entries := self.GetEntries()
+	for i := range (entries) {
+		if entries[i].GetName() == newDirEntry.GetName() {
 			if replaceExisting {
 				newEntries = append(newEntries, newDirEntry)
 				found = true
@@ -264,7 +265,7 @@ func (self *Dir) cloneWithReplacement(newDirEntry *DirEntry, replaceExisting boo
 				return nil, errors.New("already exists")
 			}
 		} else {
-			newEntries = append(newEntries, self.Entries[i])
+			newEntries = append(newEntries, entries[i])
 		}
 	}
 
@@ -305,6 +306,9 @@ func (self *RawFilesystem) cloneDirWithReplacement(dirId ChunkID, newDirEntry *D
 }
 
 func splitPath(path string) []string {
+	if path[0] == '/' {
+		panic(fmt.Sprintf("invalid path: %s\n", path))
+	}
 	return strings.Split(path, "/")
 }
 
@@ -313,65 +317,97 @@ func splitPathTo(path string) (string, string) {
 	return path[:i], path[i+1:]
 }
 
-func (self *RawFilesystem) FileExists(rootId ChunkID, path string) bool {
-	parentDir, filename := splitPathTo(path)
-	var parentDirNames []string = splitPath(parentDir);
-	dirId := rootId
-	for i:=0; i<len(parentDirNames);i++ {
-		dir, readDirErr := self.ReadDir(dirId)
-		if readDirErr != nil {
-			panic("readdir failed")
-		}
-		dirId = ChunkID(dir.Get(parentDirNames[i]).GetChunk())
+// finddirectory("x", ["a"]) -> ["a_id"]
+// finddirectory("x", ["a", "b"]) -> ["a_id", "b_id"]
+
+func (self *RawFilesystem) FindDirectories(rootId ChunkID, pathComponents []string) []ChunkID {
+	if len(pathComponents) < 1 {
+		panic("pathComponents must be >= 1")
 	}
-	dir, readDirErr := self.ReadDir(dirId)
+
+	parentId := rootId
+	pathComponentIds := make([]ChunkID, len(pathComponents))
+	for i := 0; i < len(pathComponents); i++ {
+		fmt.Printf("dirId='%s', pathComponents[i]='%s' i=%d\n", string(parentId), pathComponents[i], i)
+
+		dir, readDirErr := self.ReadDir(parentId)
+		if readDirErr != nil {
+			panic(fmt.Sprintf("readdir failed: %s", readDirErr.Error()))
+		}
+
+		entry := dir.Get(pathComponents[i])
+		if entry == nil {
+			return nil
+		}
+
+		if ChunkType(entry.GetType()) != DIR_TYPE {
+			return nil
+		}
+
+		parentId = ChunkID(entry.GetChunk())
+		pathComponentIds[i] = parentId
+	}
+
+	return pathComponentIds
+}
+
+func (self *RawFilesystem) FileExists(rootId ChunkID, path string) bool {
+	var parentDirId ChunkID
+	var filename string
+
+	if strings.Contains(path, "/") {
+		var parentDir string
+		parentDir, filename = splitPathTo(path)
+		parentDirIds := self.FindDirectories(rootId, splitPath(parentDir))
+		parentDirId = parentDirIds[len(parentDirIds)-1]
+	} else {
+		parentDirId = rootId
+		filename = path
+	}
+	fmt.Printf("rootId=%s parentDirId = %s, filename=%s\n", string(rootId), string(parentDirId), filename)
+
+	dir, readDirErr := self.ReadDir(parentDirId)
 	if readDirErr != nil {
-		panic("readdir failed")
+		panic(fmt.Sprintf("readdir failed: %s", readDirErr.Error()))
 	}
 	entry := dir.Get(filename)
 	return entry != nil
 }
 
 func (self *RawFilesystem) recursiveCloneDirWithReplacement(rootId ChunkID, parentDir string, newDirEntry *DirEntry, replaceExisting bool) (ChunkID, error) {
-	root, readDirErr := self.ReadDir(rootId)
-	if readDirErr != nil {
-		return INVALID_ID, readDirErr
+	var parentDirIds [] ChunkID
+	var parentDirNames [] string
+
+	if parentDir == "." {
+		parentDirIds = make([]ChunkID, 1)
+		parentDirIds[0] = rootId
+		parentDirNames = nil
+	} else {
+		parentDirNames = splitPath(parentDir)
+		parentDirIds = make([]ChunkID, 1, 1+len(parentDirNames))
+		parentDirIds[0] = rootId
+		parentDirIds = append(parentDirIds, self.FindDirectories(rootId, parentDirNames)...)
 	}
 
-	var parentDirNames []string = splitPath(parentDir);
-	parents := make([]ChunkID, 0, len(parentDirNames))
-	newParents := make([]ChunkID, 0, len(parentDirNames))
-
-	// resolve each dir that ultimately needs to be replaced
-	curDir := root
-	parents = append(parents, rootId)
-	for _, name := range (parentDirNames) {
-		entry := curDir.Get(name)
-		if entry == nil {
-			return INVALID_ID, errors.New("Path did not exist")
-		}
-		if ChunkType(entry.GetType()) != DIR_TYPE {
-			return INVALID_ID, errors.New("Path was not a directory")
-		}
-		curDir, readDirErr = self.ReadDir(ChunkID(entry.GetChunk()))
-		if readDirErr != nil {
-			return INVALID_ID, errors.New("Could not read dir")
-		}
-		parents = append(parents, ChunkID(entry.GetChunk()))
-	}
+	newParentIds := make([]ChunkID, len(parentDirIds))
 
 	var cloneErr error
-	for i := len(parents) ; i >= 0 ; i -- {
-		newParents[i], cloneErr = self.cloneDirWithReplacement(parents[i], newDirEntry, true)
-		newDirEntry = &DirEntry{Name: proto.String(string(parentDirNames[i])), Type: proto.Int32(int32(DIR_TYPE)), Chunk: proto.String(string(newParents[i]))}
-		// Length uint64, 	MD5 [] byte CreationTime uint64
+	for i := len(parentDirIds)-1 ; i >= 0 ; i -- {
+		newParentIds[i], cloneErr = self.cloneDirWithReplacement(parentDirIds[i], newDirEntry, replaceExisting)
 		if cloneErr != nil {
 			return INVALID_ID, cloneErr
 		}
-	}
-	replaceExisting = true
 
-	return newParents[0], nil
+		replaceExisting = true
+		if i > 0 {
+			newDirEntry = &DirEntry{Name: proto.String(string(parentDirNames[i-1])), Type: proto.Int32(int32(DIR_TYPE)), Chunk: proto.String(string(newParentIds[i]))}
+		} else {
+			newDirEntry = nil
+		}
+		// Length uint64, 	MD5 [] byte CreationTime uint64
+	}
+
+	return newParentIds[0], nil
 }
 
 func NewRawFilesystem(chunks ChunkService, metadata ChunkService) *RawFilesystem {
@@ -461,8 +497,8 @@ func (self * RawFilesystem) NewDir(dir *Dir) (ChunkID, error) {
 }
 
 func (self * RawFilesystem) NewFile(content io.Reader) (ChunkID, error) {
-	// FIXME
 	id := NewChunkId()
+
 	length, md5, createErr := self.chunks.Create(id, content)
 	if createErr != nil {
 		return INVALID_ID, createErr
@@ -473,6 +509,7 @@ func (self * RawFilesystem) NewFile(content io.Reader) (ChunkID, error) {
 	if err != nil {
 		return INVALID_ID, err
 	}
+
 	return id, nil
 }
 
