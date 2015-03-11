@@ -54,10 +54,10 @@ func (s *RawFilesystemSuite) TestCloneWithReplacement (c *C) {
 
 	parentDirId,_ := fs.NewDir(&Dir{Entries:make([]*DirEntry, 0)})
 
-	newRoot1,_ := fs.recursiveCloneDirWithReplacement(parentDirId, "a", NewDirEntry("a", file1Id, FILE_TYPE), true)
+	newRoot1,_ := fs.recursiveCloneDirWithReplacement(parentDirId, "a", "a", NewDirEntry("a", file1Id, FILE_TYPE), true)
 	c.Assert(newRoot1, Not(Equals), INVALID_ID)
 
-	newRoot2,_ := fs.recursiveCloneDirWithReplacement(newRoot1, "a", NewDirEntry("a", file2Id, FILE_TYPE), true)
+	newRoot2,_ := fs.recursiveCloneDirWithReplacement(newRoot1, "a", "a", NewDirEntry("a", file2Id, FILE_TYPE), true)
 	c.Assert(newRoot2, Not(Equals), INVALID_ID)
 
 	c.Assert(fs.FileExists(parentDirId, "a"), Equals, false)
@@ -72,13 +72,13 @@ func (s *RawFilesystemSuite) TestCloneWithNestedReplacement (c *C) {
 	rootDirId,_ := fs.NewDir(&Dir{Entries:make([]*DirEntry, 0)})
 	emptyDirId,_ := fs.NewDir(&Dir{Entries:make([]*DirEntry, 0)})
 
-	newRoot1,_ := fs.recursiveCloneDirWithReplacement(rootDirId, ".", NewDirEntry("parent", emptyDirId, DIR_TYPE), true)
+	newRoot1,_ := fs.recursiveCloneDirWithReplacement(rootDirId, ".", "parent", NewDirEntry("parent", emptyDirId, DIR_TYPE), true)
 	c.Assert(newRoot1, Not(Equals), INVALID_ID)
 
-	newRoot2,_ := fs.recursiveCloneDirWithReplacement(newRoot1, "parent", NewDirEntry("child", emptyDirId, DIR_TYPE), true)
+	newRoot2,_ := fs.recursiveCloneDirWithReplacement(newRoot1, "parent", "child", NewDirEntry("child", emptyDirId, DIR_TYPE), true)
 	c.Assert(newRoot2, Not(Equals), INVALID_ID)
 
-	newRoot3,_ := fs.recursiveCloneDirWithReplacement(newRoot2, "parent/child", NewDirEntry("file", fileId, FILE_TYPE), true)
+	newRoot3,_ := fs.recursiveCloneDirWithReplacement(newRoot2, "parent/child", "file", NewDirEntry("file", fileId, FILE_TYPE), true)
 	c.Assert(newRoot3, Not(Equals), INVALID_ID)
 
 //	dir, _ := fs.ReadDir(newRoot3)

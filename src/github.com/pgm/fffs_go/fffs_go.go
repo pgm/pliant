@@ -252,14 +252,20 @@ type RawFilesystem struct {
 	metadata ChunkService
 }
 
-func (self *Dir) cloneWithReplacement(newDirEntry *DirEntry, replaceExisting bool) (*Dir, error) {
+func (self *Dir) cloneWithReplacement(name string, newDirEntry *DirEntry, replaceExisting bool) (*Dir, error) {
+	if(newDirEntry != nil && newDirEntry.GetName() != name) {
+		panic(fmt.Sprintf("name mismatches direntry: %s != %s", newDirEntry.GetName(), name))
+	}
+
 	newEntries := make([]*DirEntry, 0, len(self.Entries))
 	found := false
 	entries := self.GetEntries()
 	for i := range (entries) {
-		if entries[i].GetName() == newDirEntry.GetName() {
+		if entries[i].GetName() == name {
 			if replaceExisting {
-				newEntries = append(newEntries, newDirEntry)
+				if newDirEntry != nil {
+					newEntries = append(newEntries, newDirEntry)
+				}
 				found = true
 			} else {
 				return nil, errors.New("already exists")
@@ -270,7 +276,9 @@ func (self *Dir) cloneWithReplacement(newDirEntry *DirEntry, replaceExisting boo
 	}
 
 	if !found {
-		newEntries = append(newEntries, newDirEntry)
+		if newDirEntry != nil {
+			newEntries = append(newEntries, newDirEntry)
+		}
 	}
 
 	return &Dir{Entries: newEntries}, nil
@@ -286,13 +294,13 @@ func (self *Dir) Get(name string) *DirEntry {
 	return nil
 }
 
-func (self *RawFilesystem) cloneDirWithReplacement(dirId ChunkID, newDirEntry *DirEntry, replaceExisting bool) (ChunkID, error) {
+func (self *RawFilesystem) cloneDirWithReplacement(dirId ChunkID, name string, newDirEntry *DirEntry, replaceExisting bool) (ChunkID, error) {
 	dir, readDirErr := self.ReadDir(dirId)
 	if readDirErr != nil {
 		return INVALID_ID, readDirErr
 	}
 
-	newDir, cloneError := dir.cloneWithReplacement(newDirEntry, replaceExisting)
+	newDir, cloneError := dir.cloneWithReplacement(name, newDirEntry, replaceExisting)
 	if cloneError != nil {
 		return INVALID_ID, cloneError
 	}
@@ -351,7 +359,7 @@ func (self *RawFilesystem) FindDirectories(rootId ChunkID, pathComponents []stri
 	return pathComponentIds
 }
 
-func (self *RawFilesystem) FileExists(rootId ChunkID, path string) bool {
+func (self *RawFilesystem) GetFileId(rootId ChunkID, path string) (*DirEntry, error) {
 	var parentDirId ChunkID
 	var filename string
 
@@ -370,11 +378,20 @@ func (self *RawFilesystem) FileExists(rootId ChunkID, path string) bool {
 	if readDirErr != nil {
 		panic(fmt.Sprintf("readdir failed: %s", readDirErr.Error()))
 	}
+
 	entry := dir.Get(filename)
+	return entry, nil
+}
+
+func (self *RawFilesystem) FileExists(rootId ChunkID, path string) bool {
+	entry, err := self.GetFileId(rootId, path)
+	if err != nil {
+		panic(err.Error())
+	}
 	return entry != nil
 }
 
-func (self *RawFilesystem) recursiveCloneDirWithReplacement(rootId ChunkID, parentDir string, newDirEntry *DirEntry, replaceExisting bool) (ChunkID, error) {
+func (self *RawFilesystem) recursiveCloneDirWithReplacement(rootId ChunkID, parentDir string, name string, newDirEntry *DirEntry, replaceExisting bool) (ChunkID, error) {
 	var parentDirIds [] ChunkID
 	var parentDirNames [] string
 
@@ -390,10 +407,11 @@ func (self *RawFilesystem) recursiveCloneDirWithReplacement(rootId ChunkID, pare
 	}
 
 	newParentIds := make([]ChunkID, len(parentDirIds))
+	nextName := name
 
 	var cloneErr error
 	for i := len(parentDirIds)-1 ; i >= 0 ; i -- {
-		newParentIds[i], cloneErr = self.cloneDirWithReplacement(parentDirIds[i], newDirEntry, replaceExisting)
+		newParentIds[i], cloneErr = self.cloneDirWithReplacement(parentDirIds[i], nextName, newDirEntry, replaceExisting)
 		if cloneErr != nil {
 			return INVALID_ID, cloneErr
 		}
@@ -401,8 +419,10 @@ func (self *RawFilesystem) recursiveCloneDirWithReplacement(rootId ChunkID, pare
 		replaceExisting = true
 		if i > 0 {
 			newDirEntry = &DirEntry{Name: proto.String(string(parentDirNames[i-1])), Type: proto.Int32(int32(DIR_TYPE)), Chunk: proto.String(string(newParentIds[i]))}
+			nextName = parentDirNames[i-1]
 		} else {
 			newDirEntry = nil
+			nextName = ""
 		}
 		// Length uint64, 	MD5 [] byte CreationTime uint64
 	}
@@ -461,6 +481,10 @@ func UnpackFileMetadata(r io.Reader) *FileMetadata {
 }
 
 func (self * RawFilesystem) ReadDir(id ChunkID) (*Dir, error) {
+	if id == EMPTY_DIR_ID {
+		return &Dir{}, nil;
+	}
+
 	chunk, err := self.chunks.Read(id, 0, -1)
 	if err != nil {
 		return nil, err
@@ -513,88 +537,11 @@ func (self * RawFilesystem) NewFile(content io.Reader) (ChunkID, error) {
 	return id, nil
 }
 
-// higher level filesystem interface.  Incorporates concept of label for identifying root dir, and paths within that tree.
-// all operations based on label and path
-type Filesystem interface {
-	MakeDir(label string, vpath string) error
-	Label(new_label string, existing_label string, vpath string) error
-	Rename(label string, existing_vpath string, new_vpath string) error
-	ReadFile(label string, vpath string, offset int64, size int64, buffer []byte) error
-	WriteFile(label string, vpath string, content io.Reader) error
-	Unlink(label string, vpath string) error
-	ReadDir(label string, vpath string) ([]DirEntry, error)
-	FileExists(label string, vpath string) (bool, error)
-}
-
-type FilesystemImp struct {
-	labels  LabelService
-	fs      RawFilesystem
-	mapLock sync.Mutex
-	labelLocks map[string] *sync.RWMutex
-}
-
-func (self *FilesystemImp) getLabelLock(label string) *sync.RWMutex {
-	self.mapLock.Lock()
-	defer self.mapLock.Unlock()
-
-	lock, exists := self.labelLocks[label]
-
-	if !exists {
-		lock = new(sync.RWMutex)
-		self.labelLocks[label] = lock
-	}
-
-	return lock
-}
-
-func NewDirEntry(name string, chunk ChunkID, chunk_type ChunkType) *DirEntry {
-	return &DirEntry{Name: proto.String(string(name)), Chunk: proto.String(string(chunk)), Type: proto.Int32(int32(chunk_type))}
-}
-
-func (self *FilesystemImp) MakeDir(label string, vpath string) error {
-	wlock := self.getLabelLock(label)
-	wlock.Lock()
-	defer wlock.Unlock()
-
-	origRootId, getRootErr := self.labels.GetRoot(label)
-	if getRootErr != nil {
-		return getRootErr
-	}
-
-	parentPath, name := splitPathTo(vpath)
-	newRootId, cloneErr := self.fs.recursiveCloneDirWithReplacement(origRootId, parentPath, NewDirEntry(name, EMPTY_DIR_ID, DIR_TYPE), false)
-	if cloneErr != nil {
-		return cloneErr
-	}
-
-	updateLabelErr := self.labels.UpdateLabel(label, newRootId)
-	if updateLabelErr != nil {
-		return updateLabelErr
-	}
-
-	return nil
-}
-
-/*
-func (self *FilesystemImp) Label(label string, existing_label string, vpath string) error {
-	rlock := self.getLabelLock(existing_label)
-	rlock.RLock()
-	rootId := self.labels.GetRoot(existing_label)
-	rlock.RUnlock()
-
-	dirId := self.getDirId(rootId, vpath)
-
-	wlock := self.getLabelLock(label)
-	wlock.Lock()
-	self.labels.UpdateLabel(label, dirId)
-	wlock.Unlock()
-}
-*/
 
 // TODO: Put cross cutting logic for GC somewhere
 // TODO: Put cross-cutting logic for push/pull somewhere
-// TODO: find protobuffer support for GO.  (or write manual packing?)
-
+// TODO: Write tests for unlink operation
+// TODO: Write tests for higher level filesystem operations
 
 func main() {
 	fmt.Printf("Start")
