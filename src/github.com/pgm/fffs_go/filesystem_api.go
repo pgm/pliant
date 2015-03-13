@@ -328,6 +328,9 @@ func (self *Filesystem) ReadDir(label string, vpath string) (*Dir, error) {
 }
 
 
+
+
+
 //Write operations:
 //Read operations:
 //  FileExists(label string, vpath string) (bool, error)

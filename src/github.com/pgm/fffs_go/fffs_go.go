@@ -145,6 +145,59 @@ func (self *MemChunkService) VisitEach(visitor IdVisitor) error {
 	return nil
 }
 
+type CachingChunkService struct {
+	local ChunkService
+	remote ChunkService
+	is_local map[ChunkID] bool
+}
+
+func copyChunk(id ChunkID, src ChunkService, dst ChunkService) error {
+	panic("unimp")
+}
+
+func (self *CachingChunkService) IsChunkLocalOnly(id ChunkID) bool {
+//	_, ok := self.is_local[id]
+//	return ok
+	panic("unimp")
+}
+
+func (self *CachingChunkService) UpdateChunkStatus(id ChunkID, isLocal bool) {
+	panic("unimp")
+}
+
+func (self *CachingChunkService) Read(id ChunkID, offset int64, size int64) (io.Reader, error) {
+	has_chunk, err := self.local.HasChunk(id)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	if(has_chunk) {
+		return self.local.Read(id, offset, size)
+	}
+
+	// if we don't have it locally, then pull it from the remote
+	copyErr := copyChunk(id, self.remote, self.local)
+	if copyErr == nil {
+		return nil, copyErr
+	}
+
+	// Then serve it from local
+	return self.local.Read(id, offset, size)
+}
+
+func (self *CachingChunkService) Create(id ChunkID, data io.Reader) (int64, []byte, error) {
+	length, md5, err := self.local.Create(id, data)
+	if err == nil {
+		self.UpdateChunkStatus(id, true)
+	}
+
+	return length, md5, err
+}
+
+func (self *CachingChunkService) Free(id ChunkID) error {
+	return self.local.Free(id)
+}
+
 // Interface for a map from string -> a chunk id
 type LabelService interface {
 	HasLabel(label string) (bool, error)
@@ -249,7 +302,7 @@ func NewChunkId() ChunkID {
 
 type RawFilesystem struct {
 	chunks   ChunkService
-	metadata ChunkService
+	metadata MetadataService
 }
 
 func (self *Dir) cloneWithReplacement(name string, newDirEntry *DirEntry, replaceExisting bool) (*Dir, error) {
@@ -430,7 +483,7 @@ func (self *RawFilesystem) recursiveCloneDirWithReplacement(rootId ChunkID, pare
 	return newParentIds[0], nil
 }
 
-func NewRawFilesystem(chunks ChunkService, metadata ChunkService) *RawFilesystem {
+func NewRawFilesystem(chunks ChunkService, metadata MetadataService) *RawFilesystem {
 	return &RawFilesystem{chunks: chunks, metadata: metadata}
 }
 
@@ -457,28 +510,6 @@ func UnpackDirEntries(r io.Reader) *Dir {
 	return dest
 }
 
-func PackFileMetadata(metadata *FileMetadata) []byte {
-	data, err := proto.Marshal(metadata)
-	if err != nil {
-		panic("Couldn't marshal metadata object")
-	}
-	return data
-}
-
-func UnpackFileMetadata(r io.Reader) *FileMetadata {
-	dest := &FileMetadata{}
-	buffer := bytes.Buffer{}
-	_, readErr := buffer.ReadFrom(r)
-	if readErr != nil {
-		panic("Could not read")
-	}
-	err := proto.Unmarshal(buffer.Bytes(), dest)
-	if err != nil {
-		panic(fmt.Sprintf("Could not unmarshal metadata: %s", err.Error()))
-	}
-
-	return dest
-}
 
 func (self * RawFilesystem) ReadDir(id ChunkID) (*Dir, error) {
 	if id == EMPTY_DIR_ID {
@@ -493,11 +524,7 @@ func (self * RawFilesystem) ReadDir(id ChunkID) (*Dir, error) {
 }
 
 func (self * RawFilesystem) GetFileMetadata(id ChunkID) (*FileMetadata, error) {
-	chunk, err := self.metadata.Read(id, 0, -1)
-	if err != nil {
-		return nil, err
-	}
-	return UnpackFileMetadata(chunk), nil
+	return self.metadata.GetFileMetadata(id)
 }
 
 func (self * RawFilesystem) ReadFile(id ChunkID, offset int64, size int64, buffer []byte) error {
@@ -529,7 +556,7 @@ func (self * RawFilesystem) NewFile(content io.Reader) (ChunkID, error) {
 	}
 
 	metadata := FileMetadata{Length: proto.Int64(length), Md5: md5, CreationTime: proto.Int64(time.Now().Unix())}
-	_, _, err := self.metadata.Create(id, bytes.NewBuffer(PackFileMetadata(&metadata)))
+	err := self.metadata.SetFileMetadata(id, &metadata)
 	if err != nil {
 		return INVALID_ID, err
 	}
