@@ -12,9 +12,8 @@ var _ = fmt.Sprintf("hello!")
 
 func makeFilesystem() *RawFilesystem{
 	chunks := NewMemChunkService()
-	metadata := NewMemChunkService()
 
-	return NewRawFilesystem(chunks, metadata)
+	return NewRawFilesystem(chunks)
 }
 
 func (s *RawFilesystemSuite) TestRawFilesystemDirs (c *C) {

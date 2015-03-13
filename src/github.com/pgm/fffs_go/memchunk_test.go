@@ -38,17 +38,17 @@ func (s *MemChunkSuite) TestAddRemove (c *C) {
 	var err error
 	var reader io.Reader
 
-	reader, err = svc.Read("a", 0, 3)
+	reader, _, err = svc.Read("a", 0, 3)
 	c.Assert(reader, NotNil)
 	c.Assert(err, IsNil)
 	//c.Assert(data, Equals, [...]byte{1, 2, 3}[:])
 
-	reader, err = svc.Read("a", 0, 1)
+	reader, _, err = svc.Read("a", 0, 1)
 	c.Assert(reader, NotNil)
 	c.Assert(err, IsNil)
 	//c.Assert(data, Equals, [...]byte{0}[:])
 
-	reader, err = svc.Read("a", 2, 1)
+	reader, _, err = svc.Read("a", 2, 1)
 	c.Assert(reader, NotNil)
 	c.Assert(err, IsNil)
 	//c.Assert(data, Equals, [...]byte{3}[:])

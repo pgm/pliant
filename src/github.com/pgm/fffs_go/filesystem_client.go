@@ -1,8 +1,8 @@
 package fffs_go
 
-import (
-	"sync"
-)
+//import (
+//	"sync"
+//)
 
 type FilesystemClient struct {
 	Filesystem
@@ -13,12 +13,12 @@ type FilesystemClient struct {
 func NewFilesystemClient(local_chunks ChunkService, local_metadata ChunkService,
 	local_labels LabelService, master_chunks ChunkService, master_metadata ChunkService,
 	master_labels LabelService) * FilesystemClient {
-
-	data_cache := &CachingChunkService{local: local_chunks, remote: master_chunks}
-	metadata_cache := &CachingChunkService{local: local_metadata, remote: master_metadata}
-
-	rawFs := NewRawFilesystem(data_cache, &MetadataAdapter{metadata_cache})
 	panic("unimp")
+
+//	data_cache := &CachingChunkService{local: local_chunks, remote: master_chunks}
+//	metadata_cache := &CachingChunkService{local: local_metadata, remote: master_metadata}
+
+//	rawFs := NewRawFilesystem(data_cache)
 //	return &FilesystemClient{
 //		labels: local_labels,
 //		fs: rawFs,

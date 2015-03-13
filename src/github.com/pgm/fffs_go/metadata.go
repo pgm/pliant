@@ -30,24 +30,23 @@ func UnpackFileMetadata(r io.Reader) *FileMetadata {
 	return dest
 }
 
-type MetadataService interface {
-	GetFileMetadata(id ChunkID) (*FileMetadata, error)
-	SetFileMetadata(id ChunkID, metadata *FileMetadata) error
-}
-
-type MetadataAdapter struct {
-	chunks ChunkService
-}
-
-func (self *MetadataAdapter) GetFileMetadata(id ChunkID) (*FileMetadata, error) {
-	chunk, err := self.chunks.Read(id, 0, -1)
-	if err != nil {
-		return nil, err
-	}
-	return UnpackFileMetadata(chunk), nil
-}
-
-func (self *MetadataAdapter) SetFileMetadata(id ChunkID, metadata *FileMetadata) error {
-	_, _, err := self.chunks.Create(id, bytes.NewBuffer(PackFileMetadata(metadata)))
-	return err
-}
+//type MetadataService interface {
+//	GetFileMetadata(id ChunkID) (*FileMetadata, error)
+//	SetFileMetadata(id ChunkID, metadata *FileMetadata) error
+//}
+//
+//type MetadataAdapter struct {
+//	chunks ChunkService
+//}
+//
+//func (self *MetadataAdapter) GetFileMetadata(id ChunkID) (*FileMetadata, error) {
+//	chunk, _, err := self.chunks.Read(id, 0, -1)
+//	if err != nil {
+//		return nil, err
+//	}
+//	return UnpackFileMetadata(chunk), nil
+//}
+//
+//func (self *MetadataAdapter) SetFileMetadata(id ChunkID, metadata *FileMetadata) error {
+//	return err
+//}
