@@ -32,13 +32,15 @@ func (s *MemChunkSuite) TestAddRemove (c *C) {
 	svc := NewMemChunkService()
 	assertHasChunk(c, svc, "a", false)
 	data := [...]byte{1, 2, 3}
-	svc.Create("a", bytes.NewBuffer(data[:]))
+	metadata, _ := svc.Create("a", bytes.NewBuffer(data[:]))
+	c.Assert(metadata.GetLength(), Equals, int64(3))
 	assertHasChunk(c, svc, "a", true)
 
 	var err error
 	var reader io.Reader
 
-	reader, _, err = svc.Read("a", 0, 3)
+	reader, metadata, err = svc.Read("a", 0, 3)
+	c.Assert(metadata.GetLength(), Equals, int64(3))
 	c.Assert(reader, NotNil)
 	c.Assert(err, IsNil)
 	//c.Assert(data, Equals, [...]byte{1, 2, 3}[:])

@@ -45,8 +45,8 @@ func (self *Filesystem) getLabelLock(label string) *sync.RWMutex {
 	return lock
 }
 
-func NewDirEntry(name string, chunk ChunkID, chunk_type ChunkType) *DirEntry {
-	return &DirEntry{Name: proto.String(string(name)), Chunk: proto.String(string(chunk)), Type: proto.Int32(int32(chunk_type))}
+func NewDirEntry(name string, chunk ChunkID, chunk_type ChunkType, metadata *FileMetadata) *DirEntry {
+	return &DirEntry{Name: proto.String(string(name)), Chunk: proto.String(string(chunk)), Type: proto.Int32(int32(chunk_type)), Metadata: metadata}
 }
 
 func (self *Filesystem) MakeDir(label string, vpath string) error {
@@ -61,7 +61,7 @@ func (self *Filesystem) MakeDir(label string, vpath string) error {
 
 	parentPath, name := oddSplit(vpath)
 
-	newRootId, cloneErr := self.fs.recursiveCloneDirWithReplacement(origRootId, parentPath, name, NewDirEntry(name, EMPTY_DIR_ID, DIR_TYPE), false)
+	newRootId, cloneErr := self.fs.recursiveCloneDirWithReplacement(origRootId, parentPath, name, NewDirEntry(name, EMPTY_DIR_ID, DIR_TYPE, nil), false)
 	if cloneErr != nil {
 		return cloneErr
 	}
@@ -86,12 +86,12 @@ func (self *Filesystem) WriteFile(label string, vpath string, content io.Reader)
 
 	parentPath, name := oddSplit(vpath)
 
-	fileId, newFileErr := self.fs.NewFile(content)
+	fileId, metadata, newFileErr := self.fs.NewFile(content)
 	if(newFileErr != nil) {
 		return newFileErr
 	}
 
-	newRootId, cloneErr := self.fs.recursiveCloneDirWithReplacement(origRootId, parentPath, name, NewDirEntry(name, fileId, FILE_TYPE), false)
+	newRootId, cloneErr := self.fs.recursiveCloneDirWithReplacement(origRootId, parentPath, name, NewDirEntry(name, fileId, FILE_TYPE, metadata), false)
 	if cloneErr != nil {
 		return cloneErr
 	}
