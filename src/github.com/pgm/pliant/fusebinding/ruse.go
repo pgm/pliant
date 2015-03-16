@@ -1,20 +1,19 @@
 package fusebinding
 
 import (
-	"flag"
-	"log"
-	"fmt"
+
 
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"github.com/hanwen/go-fuse/fuse/pathfs"
-	"github.com/pgm/fffs_go"
-	"bytes"
+
+	"github.com/pgm/pliant/low"
+	"log"
 )
 
 type RuseFs struct {
 	pathfs.FileSystem
-	fs *fffs_go.Filesystem
+	fs *low.Filesystem
 	label string
 }
 
@@ -33,8 +32,14 @@ func (self *RuseFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fus
 			return nil, fuse.ENOENT
 		} else {
 			creationTime := uint64(entry.GetMetadata().GetCreationTime())
+			mode := uint32(0644)
+			if(low.ChunkType(entry.GetType()) == low.DIR_TYPE) {
+				mode = mode | fuse.S_IFDIR | 0777
+			} else {
+				mode = mode | fuse.S_IFREG
+			}
 			return &fuse.Attr{
-				Mode: fuse.S_IFREG | 0644,
+				Mode: mode,
 				Atime: creationTime,
 				Mtime: creationTime,
 				Ctime: creationTime,
@@ -53,8 +58,6 @@ func (self *RuseFs) OpenDir(name string, context *fuse.Context) (c []fuse.DirEnt
 			c = append(c, fuse.DirEntry{Name: e.GetName(), Mode: fuse.S_IFREG})
 		}
 
-		fmt.Printf("Count %d\n", len(c))
-
 		return c, fuse.OK
 	}
 	return nil, fuse.ENOENT
@@ -65,6 +68,17 @@ func (self *RuseFs) Open(name string, flags uint32, context *fuse.Context) (file
 		return nil, fuse.EPERM
 	}
 	return nodefs.NewDataFile([]byte(name)), fuse.OK
+}
+
+func (self *RuseFs) Mkdir(name string, mode uint32, context *fuse.Context) fuse.Status {
+	log.Printf("Mkdir(%s)", name)
+	err := self.fs.MakeDir(self.label, name)
+	if err == nil {
+		return fuse.OK
+	} else {
+		log.Printf("Mkdir failed: %s", err.Error())
+		return fuse.EIO
+	}
 }
 
 func NewRuseFs(label string, filesystem *low.Filesystem) *RuseFs {
