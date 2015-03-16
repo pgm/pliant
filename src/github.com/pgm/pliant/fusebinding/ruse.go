@@ -1,6 +1,4 @@
-// A Go mirror of libfuse's hello.c
-
-package main
+package fusebinding
 
 import (
 	"flag"
@@ -17,12 +15,13 @@ import (
 type RuseFs struct {
 	pathfs.FileSystem
 	fs *fffs_go.Filesystem
+	label string
 }
 
 func (self *RuseFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
 	parentPath := "."
 
-	dir, _ := self.fs.ReadDir("root", parentPath)
+	dir, _ := self.fs.ReadDir(self.label, parentPath)
 
 	if name == "" {
 		return &fuse.Attr{
@@ -46,7 +45,7 @@ func (self *RuseFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fus
 
 func (self *RuseFs) OpenDir(name string, context *fuse.Context) (c []fuse.DirEntry, code fuse.Status) {
 	if name == "" {
-		dir, _ := self.fs.ReadDir("root", ".")
+		dir, _ := self.fs.ReadDir(self.label, ".")
 
 		c = make([]fuse.DirEntry, 0, len(dir.GetEntries()))
 		for _, e := range(dir.GetEntries()) {
@@ -68,25 +67,7 @@ func (self *RuseFs) Open(name string, flags uint32, context *fuse.Context) (file
 	return nodefs.NewDataFile([]byte(name)), fuse.OK
 }
 
-func main() {
-	flag.Parse()
-	if len(flag.Args()) < 1 {
-		log.Fatal("Usage:\n  hello MOUNTPOINT")
-	}
-
-	chunks := fffs_go.NewMemChunkService()
-	labels := fffs_go.NewMemLabelService()
-
-	rawFs := fffs_go.NewRawFilesystem(chunks)
-	fs := fffs_go.NewFilesystem(labels, rawFs)
-
-	fs.LabelEmptyDir("root")
-	fs.WriteFile("root", "x", bytes.NewBufferString("z"))
-
-	nfs := pathfs.NewPathNodeFs(&RuseFs{FileSystem: pathfs.NewDefaultFileSystem(), fs: fs}, nil)
-	server, _, err := nodefs.MountRoot(flag.Arg(0), nfs.Root(), nil)
-	if err != nil {
-		log.Fatalf("Mount fail: %v\n", err)
-	}
-	server.Serve()
+func NewRuseFs(label string, filesystem *low.Filesystem) *RuseFs {
+	return &RuseFs{FileSystem: pathfs.NewDefaultFileSystem(), fs: filesystem, label: label}
 }
+

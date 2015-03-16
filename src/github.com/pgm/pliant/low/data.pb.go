@@ -13,7 +13,7 @@ It has these top-level messages:
 	DirEntry
 	Dir
 */
-package fffs_go
+package low
 
 import proto "github.com/golang/protobuf/proto"
 import math "math"

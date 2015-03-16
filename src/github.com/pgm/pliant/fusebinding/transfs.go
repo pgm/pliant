@@ -1,6 +1,4 @@
-// A Go mirror of libfuse's hello.c
-
-package main
+package fusebinding
 
 import (
 	"flag"
