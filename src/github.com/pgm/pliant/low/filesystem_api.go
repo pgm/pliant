@@ -263,29 +263,29 @@ func (self *Filesystem) getLabelRoot(label string) (ChunkID, error) {
 	return rootId, getRootErr
 }
 
-func (self *Filesystem) ReadFile(label string, vpath string, offset int64, size int64, buffer []byte) error {
+func (self *Filesystem) ReadFile(label string, vpath string, offset int64, buffer []byte) (int, error) {
 	rootId, getRootErr := self.getLabelRoot(label)
 
 	if getRootErr != nil {
-		return getRootErr
+		return 0, getRootErr
 	}
 
 	entry, getFileIdErr := self.fs.GetFileId(rootId, vpath)
 	if(getFileIdErr != nil) {
-		return getFileIdErr
+		return 0, getFileIdErr
 	}
 
 	if entry == nil {
-		return errors.New("No such file")
+		return 0, errors.New("No such file")
 	}
 
 	if entry.GetType() != int32(FILE_TYPE) {
-		return errors.New("Was not file")
+		return 0, errors.New("Was not file")
 	}
 
-	readErr := self.fs.ReadFile(ChunkID(entry.GetChunk()), offset, size, buffer)
+	n, readErr := self.fs.ReadFile(ChunkID(entry.GetChunk()), offset, buffer)
 
-	return readErr
+	return n, readErr
 }
 
 func (self *Filesystem) getChunkId(rootId ChunkID, vpath string) (ChunkID, error) {

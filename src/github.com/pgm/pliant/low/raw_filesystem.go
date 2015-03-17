@@ -7,6 +7,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"bytes"
 	"io"
+	"log"
 )
 
 type RawFilesystem struct {
@@ -200,14 +201,15 @@ func (self * RawFilesystem) GetFileMetadata(id ChunkID) (*FileMetadata, error) {
 	return metadata, err
 }
 
-func (self * RawFilesystem) ReadFile(id ChunkID, offset int64, size int64, buffer []byte) error {
-	reader, _, err := self.chunks.Read(id, offset, size)
+func (self * RawFilesystem) ReadFile(id ChunkID, offset int64, buffer []byte) (int, error) {
+	reader, _, err := self.chunks.Read(id, offset, int64(len(buffer)))
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	_, read_err := reader.Read(buffer)
-	return read_err
+	log.Printf("Read %d", len(buffer))
+	n, read_err := reader.Read(buffer)
+	return n, read_err
 }
 
 func (self * RawFilesystem) NewDir(dir *Dir) (ChunkID, error) {

@@ -40,7 +40,7 @@ func (s *RawFilesystemSuite) TestRawFilesystemFiles (c *C) {
 	c.Assert(metadata.GetLength(), Equals, int64(1))
 
 	buffer := make([]byte, 1, 1)
-	fs.ReadFile(fileId, 0, 1, buffer)
+	fs.ReadFile(fileId, 0, buffer)
 	c.Assert(buffer[0], Equals, uint8('x'))
 }
 

@@ -9,6 +9,7 @@ import (
 	"crypto/md5"
 	"github.com/golang/protobuf/proto"
 	"time"
+//	"log"
 )
 
 
@@ -57,15 +58,10 @@ func (self *MemChunkService) Read(id ChunkID, offset int64, size int64) (io.Read
 	self.lock.Unlock()
 
 	if ok {
-		if size < 0 {
+		if size <0  || offset+size > int64(len(buffer)) {
 			size = int64(len(buffer))-offset
 		}
-
-		if offset+size > int64(len(buffer)) {
-			return nil, nil, errors.New("Attempted read which would exceed bounds")
-		} else {
-			return bytes.NewReader(buffer[offset:offset+size]), metadata, nil
-		}
+		return bytes.NewReader(buffer[offset:offset+size]), metadata, nil
 	} else {
 		return nil, nil, errors.New(fmt.Sprintf("No such ID: '%s'", string(id)))
 	}

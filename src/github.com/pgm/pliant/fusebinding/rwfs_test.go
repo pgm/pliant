@@ -13,7 +13,6 @@ import (
 	"os"
 	"github.com/hanwen/go-fuse/fuse"
 	"testing"
-//	"time"
 )
 
 type RwfsSuite struct{
@@ -53,16 +52,11 @@ func (s *RwfsSuite) SetUpTest(c *C) {
 	fs.LabelEmptyDir("root")
 	fs.WriteFile("root", "x", bytes.NewBufferString("z"))
 
-	//	chunks := fffs_go.NewMemChunkService()
-	//	labels := fffs_go.NewMemLabelService()
-	//	rawFs := fffs_go.NewRawFilesystem(chunks)
-	//	filesystem := NewFilesystem(labels, rawFs)
-
 	rwfs := NewRwFs(s.workDir, fs, "root")
 	nfs := pathfs.NewPathNodeFs(rwfs, nil)
 	server, _, err := nodefs.MountRoot(s.mountPoint, nfs.Root(), nil)
 	s.server = server
-	s.server.SetDebug(true)
+//	s.server.SetDebug(true)
 	if err != nil {
 		log.Fatalf("Mount fail: %v\n", err)
 	}
@@ -71,14 +65,14 @@ func (s *RwfsSuite) SetUpTest(c *C) {
 	go s.server.Serve()
 	log.Printf("Setup test: Wait Mount")
 	s.server.WaitMount()
-	log.Printf("Setup test: done")
-	// TODO: figure out how to block until the mount has completed
-//	time.Sleep(2 * time.Second)
+	// on macos this seems necessary.  Wait mount seems insufficient
 	rwfs.WaitForAccess()
+	log.Printf("Setup test: done")
 }
 
 func (s *RwfsSuite) TearDownTest(c *C) {
 	log.Printf("Teardown: start")
+
 	err := s.server.Unmount()
 	if err != nil {
 		panic(err.Error())
@@ -90,18 +84,6 @@ func (s *RwfsSuite) TearDownTest(c *C) {
 	log.Printf("Teardown: done")
 }
 
-//func makeFilesystemClient() (*FilesystemClient,*FilesystemClient) {
-//	local_chunks1 := NewMemChunkService()
-//	local_labels1 := NewMemLabelService()
-//	local_chunks2 := NewMemChunkService()
-//	local_labels2 := NewMemLabelService()
-//	master_chunks := NewMemChunkService()
-//	master_labels := NewMemLabelService()
-//
-////	return NewFilesystemClient(local_chunks1, local_labels1, master_chunks, master_labels), NewFilesystemClient(local_chunks2, local_labels2, master_chunks, master_labels)
-//
-//}
-
 func (s *RwfsSuite) TestReadFromFuseFile (c *C) {
 	log.Printf("TestRead start")
 
@@ -112,7 +94,50 @@ func (s *RwfsSuite) TestReadFromFuseFile (c *C) {
 	n, err := file.Read(buffer)
 	c.Assert(n, Equals, 1)
 	c.Assert(buffer[0], Equals, uint8('z'))
+	file.Close()
 
 	log.Printf("TestRead done")
 }
 
+func (s *RwfsSuite) TestMkdirRwfs (c *C) {
+	log.Printf("TestRead start")
+
+	err := os.Mkdir(fmt.Sprintf("%s/a", s.mountPoint), os.FileMode(0777))
+	c.Assert(err, IsNil)
+
+	fi, err := os.Stat(fmt.Sprintf("%s/a", s.mountPoint))
+	c.Assert(err, IsNil)
+	c.Assert(fi.IsDir(), Equals, true)
+
+	err = os.Mkdir(fmt.Sprintf("%s/a/b", s.mountPoint), os.FileMode(0777))
+	c.Assert(err, IsNil)
+
+	err = os.Remove(fmt.Sprintf("%s/a/b", s.mountPoint))
+	c.Assert(err, IsNil)
+
+	err = os.Remove(fmt.Sprintf("%s/a", s.mountPoint))
+	c.Assert(err, IsNil)
+
+	log.Printf("TestRead done")
+}
+
+func (s *RwfsSuite) TestWriteRead (c *C) {
+	log.Printf("TestWriteRead start")
+	fn := fmt.Sprintf("%s/file.txt", s.mountPoint)
+	file, err := os.Create(fn)
+	c.Assert(err, IsNil)
+
+	n, err := file.WriteString("data")
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 4)
+
+	c.Assert(file.Close(), IsNil)
+
+	file, err = os.Open(fn)
+	buffer := make([]byte, 100)
+	n, err = file.Read(buffer)
+	c.Assert(n, Equals, 4)
+	c.Assert(string(buffer[:n]), Equals, "data")
+
+	log.Printf("TestWriteRead done")
+}

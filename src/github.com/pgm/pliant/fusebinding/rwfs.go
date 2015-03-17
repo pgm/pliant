@@ -45,25 +45,6 @@ func (self *RwFs) Open(path string, flags uint32, context *fuse.Context) (file n
 	return self.wFs.Open(path, flags, context)
 }
 
-func (self *RwFs) Access(name string, mode uint32, context *fuse.Context) (code fuse.Status) {
-	close(self.started)
-	return fuse.ENOSYS
-}
-
-//func (self *RwFs) Read(dest []byte, off int64) (fuse.ReadResult, fuse.Status) {
-//	result, status := self.rFs.Read(dest, off)
-//
-//	if status == fuse.ENOENT {
-//		result, status = self.wFs.Read(dest, off)
-//	}
-//
-//	return result, status
-//}
-//
-//func (self *RwFs) Write(data []byte, off int64) (written uint32, code fuse.Status) {
-//	return self.Write(data, off)
-//}
-
 func (self *RwFs) OpenDir(name string, context *fuse.Context) (c []fuse.DirEntry, code fuse.Status) {
 	rFiles, rStatus := self.rFs.OpenDir(name, context)
 	if rStatus != fuse.OK {
@@ -84,6 +65,20 @@ func (self *RwFs) OpenDir(name string, context *fuse.Context) (c []fuse.DirEntry
 
 func (self *RwFs) Mkdir(name string, mode uint32, context *fuse.Context) fuse.Status {
 	return self.rFs.Mkdir(name, mode, context)
+}
+
+func (self *RwFs) 	Unlink(name string, context *fuse.Context) (code fuse.Status) {
+	return self.rFs.Unlink(name, context)
+}
+
+func (self *RwFs) Rmdir(name string, context *fuse.Context) (code fuse.Status) {
+	return self.rFs.Rmdir(name, context)
+}
+
+
+func (self *RwFs) Access(name string, mode uint32, context *fuse.Context) (code fuse.Status) {
+	close(self.started)
+	return fuse.ENOSYS
 }
 
 func (self *RwFs) WaitForAccess() {

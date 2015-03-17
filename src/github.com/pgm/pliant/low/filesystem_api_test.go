@@ -25,7 +25,8 @@ func (s *FilesystemApiSuite) TestMakeFiles (c *C) {
 
 	c.Assert(fs.LabelEmptyDir("x"), Equals, nil)
 	c.Assert(fs.WriteFile("x", "file", bytes.NewBufferString("a")), Equals, nil)
-	c.Assert(fs.ReadFile("x", "file", 0, 1, buffer), Equals, nil)
+	_, err := fs.ReadFile("x", "file", 0, buffer)
+	c.Assert(err, Equals, nil)
 
 	dir, readDirErr := fs.ReadDir("x", ".")
 	c.Assert(readDirErr, IsNil)
@@ -60,7 +61,8 @@ func (s *FilesystemApiSuite) TestMakeDirs (c *C) {
 
 	c.Assert(fs.MakeDir("x", "y"), Equals, nil)
 	c.Assert(fs.WriteFile("x", "y/file", bytes.NewBufferString("a")), Equals, nil)
-	c.Assert(fs.ReadFile("x", "y/file", 0, 1, buffer), Equals, nil)
+	_, err := fs.ReadFile("x", "y/file", 0, buffer)
+	c.Assert(err, Equals, nil)
 	c.Assert(buffer[0], Equals, uint8('a'))
 
 	// check readdir
@@ -73,7 +75,8 @@ func (s *FilesystemApiSuite) TestMakeDirs (c *C) {
 	c.Assert(fs.MakeDir("x", "y"), Not(Equals), nil)
 	c.Assert(fs.MakeDir("x", "y/z"), Equals, nil)
 	c.Assert(fs.WriteFile("x", "y/z/file", bytes.NewBufferString("b")), Equals, nil)
-	c.Assert(fs.ReadFile("x", "y/z/file", 0, 1, buffer), Equals, nil)
+	_, err = fs.ReadFile("x", "y/z/file", 0, buffer)
+	c.Assert(err, Equals, nil)
 	c.Assert(buffer[0], Equals, uint8('b'))
 
 	// check readdir on nested dir

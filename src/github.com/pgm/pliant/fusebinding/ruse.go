@@ -9,6 +9,7 @@ import (
 
 	"github.com/pgm/pliant/low"
 	"log"
+	"path/filepath"
 )
 
 type RuseFs struct {
@@ -18,17 +19,28 @@ type RuseFs struct {
 }
 
 func (self *RuseFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
-	parentPath := "."
+	parentPath, filename := filepath.Split(name)
+	if parentPath == "" {
+		parentPath = "."
+	} else {
+		parentPath = parentPath[:len(parentPath)-1]
+	}
+	log.Printf("RuseFs.GetAttr('%s', '%s')", parentPath, filename)
 
-	dir, _ := self.fs.ReadDir(self.label, parentPath)
+	dir, err := self.fs.ReadDir(self.label, parentPath)
+	if err != nil {
+		log.Printf("RuseFs.GetAttr, ReadDir err = %s", err.Error())
+		return nil, fuse.ENOENT
+	}
 
 	if name == "" {
 		return &fuse.Attr{
 			Mode: fuse.S_IFDIR | 0755,
 		}, fuse.OK
 	} else {
-		entry := dir.Get(name)
+		entry := dir.Get(filename)
 		if entry == nil {
+			log.Printf("RuseFs.GetAttr ret enoent: %s", name)
 			return nil, fuse.ENOENT
 		} else {
 			creationTime := uint64(entry.GetMetadata().GetCreationTime())
@@ -38,6 +50,7 @@ func (self *RuseFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fus
 			} else {
 				mode = mode | fuse.S_IFREG
 			}
+			log.Printf("RuseFs.GetAttr ret ent")
 			return &fuse.Attr{
 				Mode: mode,
 				Atime: creationTime,
@@ -67,7 +80,29 @@ func (self *RuseFs) Open(name string, flags uint32, context *fuse.Context) (file
 	if flags&fuse.O_ANYWRITE != 0 {
 		return nil, fuse.EPERM
 	}
-	return nodefs.NewDataFile([]byte(name)), fuse.OK
+
+	return NewRuseFile(self.label, name, self.fs), fuse.OK
+}
+
+type ruseFile struct {
+	label string
+	name string
+	fs *low.Filesystem
+	nodefs.File
+}
+
+func NewRuseFile(label string, name string, fs *low.Filesystem) * ruseFile {
+	return &ruseFile{label: label, name: name, fs: fs, File: nodefs.NewDefaultFile()}
+}
+
+func (self *ruseFile) Read(buf []byte, off int64) (res fuse.ReadResult, code fuse.Status) {
+	n, err := self.fs.ReadFile(self.label, self.name, off, buf)
+	if err != nil {
+		log.Printf("Error: %s", err.Error())
+		return nil, fuse.EIO
+	}
+
+	return fuse.ReadResultData(buf[0:n]), fuse.OK
 }
 
 func (self *RuseFs) Mkdir(name string, mode uint32, context *fuse.Context) fuse.Status {
@@ -85,3 +120,16 @@ func NewRuseFs(label string, filesystem *low.Filesystem) *RuseFs {
 	return &RuseFs{FileSystem: pathfs.NewDefaultFileSystem(), fs: filesystem, label: label}
 }
 
+func (self *RuseFs) Unlink(name string, context *fuse.Context) (code fuse.Status) {
+	log.Printf("Unlink(%s)", name)
+	err := self.fs.Unlink(self.label, name)
+	if err != nil {
+		log.Printf("Got error in unlink: %s", err.Error())
+		return fuse.EIO
+	}
+	return fuse.OK
+}
+
+func (self *RuseFs) Rmdir(name string, context *fuse.Context) (code fuse.Status) {
+	return self.Unlink(name, context)
+}
