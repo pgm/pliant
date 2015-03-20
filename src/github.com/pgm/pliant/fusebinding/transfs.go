@@ -1,7 +1,6 @@
 package fusebinding
 
 import (
-	"flag"
 	"fmt"
 	"log"
 
@@ -14,35 +13,38 @@ import (
 	pathpkg "path"
 )
 
-type TempFile struct {
+type flushCallback func (parentDir string, name string, handle *os.File)
+
+type transientFile struct {
+	callback flushCallback
 	name string
+	parentDir string
 	creationTime uint64
 	length uint64
 	handle *os.File
+
+	nodefs.File
 }
 
 type TransientFs struct {
 	pathfs.FileSystem
 
 	workDir string
+	callback flushCallback
 
 	lock sync.Mutex
-	parentDirs map [string] []*TempFile
+	parentDirs map [string] map [string] *transientFile
 	nextFn int
 }
 
-func NewTransientFilesystem(workDir string) *TransientFs {
-	return &TransientFs{FileSystem: pathfs.NewDefaultFileSystem(), parentDirs: make(map[string] []*TempFile), workDir: workDir}
+func NewTransientFilesystem(workDir string, callback flushCallback) *TransientFs {
+	return &TransientFs{FileSystem: pathfs.NewDefaultFileSystem(), parentDirs: make(map[string] map [string]*transientFile), workDir: workDir, callback: callback}
 }
 
-
-func findByName(files []*TempFile, name string) *TempFile {
-	var found *TempFile = nil
-
-	for _, f := range(files) {
-		if f.name == name {
-			found = f
-		}
+func findByName(files map [string] *transientFile, name string) *transientFile {
+	found, ok := files[name]
+	if !ok {
+		return nil
 	}
 
 	return found
@@ -63,12 +65,18 @@ func (self *TransientFs) GetAttr(path string, context *fuse.Context) (*fuse.Attr
 
 	files, ok := self.parentDirs[parentDir]
 	if ! ok {
+		log.Printf("No Entries in parentDirs[%s]", parentDir)
 		return nil, fuse.ENOENT
 	}
 
+	log.Printf("Entries in parentDirs[%s] = %d", parentDir, len(files))
+	for k, _ := range(files) {
+		log.Printf("Entries %s, looking for %s", k, name)
+	}
 	found := findByName(files, name)
 
 	if found == nil {
+		log.Printf("GetAttr return ENO")
 		return nil, fuse.ENOENT
 	}
 
@@ -103,7 +111,7 @@ func (self *TransientFs) Open(path string, flags uint32, context *fuse.Context) 
 
 	files, ok := self.parentDirs[parentDir]
 	if ! ok {
-		files = make([]*TempFile, 0, 10)
+		files = make(map[string]*transientFile)
 	}
 
 	// check to see if this file already exists
@@ -116,18 +124,18 @@ func (self *TransientFs) Open(path string, flags uint32, context *fuse.Context) 
 
 		handle, err := os.Create(self.getTempFilename())
 		if err != nil {
-			log.Printf("returning err")
+			log.Printf("returning error: %s", err.Error())
 			return nil, fuse.EIO
 		}
 		creationTime := time.Now().Unix()
-		state := &TempFile{	name: name, creationTime: uint64(creationTime), length: 0, handle: handle }
-		files = append(files, state )
+		newFile := NewTransientFile(parentDir, name, uint64(creationTime), 0, handle, self.callback)
+		files[name] = newFile
 
 		self.parentDirs[parentDir] = files
 
 		// should I really be creating a new File instance with each time the file is opened?  Or reusing them?
 		// Need to check on how release works.
-		return NewTransientFile(state), fuse.OK
+		return newFile, fuse.OK
 
 	} else {
 		// if we opened this read-only
@@ -135,30 +143,29 @@ func (self *TransientFs) Open(path string, flags uint32, context *fuse.Context) 
 			return nil, fuse.ENOENT
 		}
 
-		return NewTransientFile(found), fuse.OK
+		return found, fuse.OK
 	}
 }
 
-type transientFile struct {
-	state *TempFile
-
-	nodefs.File
-}
-
-func NewTransientFile(state *TempFile) nodefs.File {
+func NewTransientFile(parentDir string, name string, creationTime uint64, length uint64, handle *os.File, callback flushCallback) *transientFile {
 	f := new(transientFile)
-	f.state = state
 	f.File = nodefs.NewDefaultFile()
+	f.parentDir = parentDir
+	f.name = name
+	f.creationTime = creationTime
+	f.length = length
+	f.handle = handle
+	f.callback = callback
 	return f
 }
 
 func (self *transientFile) Read(dest []byte, off int64) (fuse.ReadResult, fuse.Status) {
-	return fuse.ReadResultFd(self.state.handle.Fd(), off, len(dest)), fuse.OK
+	return fuse.ReadResultFd(self.handle.Fd(), off, len(dest)), fuse.OK
 }
 
 func (self *transientFile) Write(data []byte, off int64) (written uint32, code fuse.Status) {
-	n, err := self.state.handle.WriteAt(data, off)
-	self.state.length += uint64(n)
+	n, err := self.handle.WriteAt(data, off)
+	self.length += uint64(n)
 	written = uint32(n)
 	if err == nil {
 		return written, fuse.OK
@@ -168,12 +175,8 @@ func (self *transientFile) Write(data []byte, off int64) (written uint32, code f
 	}
 }
 
-func (self *transientFile) Release() {
-	log.Printf("Release called")
-}
-
 func (self *transientFile) Truncate(size uint64) fuse.Status {
-	err := self.state.handle.Truncate(int64(size))
+	err := self.handle.Truncate(int64(size))
 	if err == nil {
 		return fuse.OK
 	} else {
@@ -200,29 +203,41 @@ func (self *TransientFs) OpenDir(name string, context *fuse.Context) (c []fuse.D
 	if ! ok {
 		// TODO: Add handling of "", or perhaps make this always an empty list instead of fuse/ENOENT?
 		return nil, fuse.OK
-//		return nil, fuse.ENOENT
 	}
 
 	c = make([]fuse.DirEntry, len(files))
-	for i, f := range(files) {
-		c[i] = fuse.DirEntry{Mode: fuse.S_IFREG, Name: f.name}
+	i := 0
+	for name, _ := range(files) {
+		c[i] = fuse.DirEntry{Mode: fuse.S_IFREG, Name: name}
+		i++
 	}
 
 	return c, fuse.OK
 }
 
-
-func main() {
-	flag.Parse()
-	if len(flag.Args()) < 1 {
-		log.Fatal("Usage:\n  hello MOUNTPOINT")
-	}
-
-	nfs := pathfs.NewPathNodeFs(NewTransientFilesystem("/tmp/transfs"), nil)
-	server, _, err := nodefs.MountRoot(flag.Arg(0), nfs.Root(), nil)
-	server.SetDebug(true)
-	if err != nil {
-		log.Fatalf("Mount fail: %v\n", err)
-	}
-	server.Serve()
+// it'd be faster/more efficient to just move the file into the cached storage
+func (self *transientFile) Flush() fuse.Status {
+	log.Printf("Flush(%s)", self.name)
+	self.callback(self.parentDir, self.name, self.handle)
+	return fuse.OK
 }
+
+func (self *transientFile) Release() {
+	os.Remove(self.handle.Name())
+	log.Printf("Release(%s)", self.name)
+}
+
+//func main() {
+//	flag.Parse()
+//	if len(flag.Args()) < 1 {
+//		log.Fatal("Usage:\n  hello MOUNTPOINT")
+//	}
+//
+//	nfs := pathfs.NewPathNodeFs(NewTransientFilesystem("/tmp/transfs"), nil)
+//	server, _, err := nodefs.MountRoot(flag.Arg(0), nfs.Root(), nil)
+//	server.SetDebug(true)
+//	if err != nil {
+//		log.Fatalf("Mount fail: %v\n", err)
+//	}
+//	server.Serve()
+//}

@@ -6,6 +6,8 @@ import (
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 
 	"github.com/pgm/pliant/low"
+	"os"
+	"path/filepath"
 )
 
 type RwFs struct {
@@ -18,8 +20,15 @@ type RwFs struct {
 }
 
 func NewRwFs(workDir string, filesystem *low.Filesystem, label string) *RwFs {
+	rfs := NewRuseFs(label, filesystem)
+	callback := func (parentDir string, name string, handle *os.File) {
+		// copy the file
+		handle.Seek(0, 0)
+		rfs.fs.WriteFile(rfs.label, filepath.Join(parentDir, name), handle)
+	}
+	tfs := NewTransientFilesystem(workDir, callback)
 	return &RwFs{started: make(chan struct{}),
-		FileSystem: pathfs.NewDefaultFileSystem(), wFs: NewTransientFilesystem(workDir), rFs: NewRuseFs(label, filesystem)}
+		FileSystem: pathfs.NewDefaultFileSystem(), wFs: tfs, rFs: rfs}
 }
 
 
