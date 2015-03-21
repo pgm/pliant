@@ -10,21 +10,17 @@ type FilesystemClient struct {
 	cache *CachingChunkService
 }
 
-func NewFilesystemClient(local_chunks ChunkService, local_metadata ChunkService,
-	local_labels LabelService, master_chunks ChunkService, master_metadata ChunkService,
+func NewFilesystemClient(local_chunks ChunkService,
+	local_labels LabelService, master_chunks ChunkService,
 	master_labels LabelService) * FilesystemClient {
-	panic("unimp")
 
-//	data_cache := &CachingChunkService{local: local_chunks, remote: master_chunks}
-//	metadata_cache := &CachingChunkService{local: local_metadata, remote: master_metadata}
+	cache := NewCachingChunkService(local_chunks, master_chunks)
 
-//	rawFs := NewRawFilesystem(data_cache)
-//	return &FilesystemClient{
-//		labels: local_labels,
-//		fs: rawFs,
-//		labelLocks: make(map[string] *sync.RWMutex),
-//		master_labels: master_labels,
-//		cache: cache}
+	rawFs := NewRawFilesystem(cache)
+	return &FilesystemClient{
+		Filesystem: NewFilesystem(local_labels, rawFs),
+		master_labels: master_labels,
+		cache: cache}
 }
 
 // write all reachable blocks to target and then update lable

@@ -145,6 +145,6 @@ func (s *RwfsSuite) TestWriteRead (c *C) {
 	c.Assert(n, Equals, 4)
 	c.Assert(string(buffer[:n]), Equals, "data")
 	file.Close()
-	
+
 	log.Printf("TestWriteRead done")
 }

@@ -10,6 +10,9 @@ import (
 	"github.com/golang/protobuf/proto"
 	"time"
 //	"log"
+	"log"
+//	"github.com/boltdb/bolt"
+
 )
 
 
@@ -70,6 +73,7 @@ func (self *MemChunkService) Read(id ChunkID, offset int64, size int64) (io.Read
 func (self *MemChunkService) Create(id ChunkID, data io.Reader) (*FileMetadata, error) {
 	buffer := bytes.NewBuffer(make([]byte, 0, 1000))
 	buffer.ReadFrom(data)
+	log.Printf("MemChunkService: Create(%s) len=%d", string(id), buffer.Len())
 
 	b := buffer.Bytes()
 
@@ -111,37 +115,68 @@ func (self *MemChunkService) VisitEach(visitor IdVisitor) error {
 type CachingChunkService struct {
 	local ChunkService
 	remote ChunkService
+
+	lock sync.Mutex
 	is_local map[ChunkID] bool
 }
 
+func NewCachingChunkService(local ChunkService,
+	remote ChunkService) * CachingChunkService {
+	return &CachingChunkService{local: local, remote: remote, is_local: make(map[ChunkID] bool)}
+}
+
 func copyChunk(id ChunkID, src ChunkService, dst ChunkService) error {
-	panic("unimp")
+	log.Printf("Warning: hardcoded max chunk size")
+	reader, _, err := src.Read(id, 0, 1000000)
+	if err != nil {
+		log.Printf("Got Error: %s", err.Error())
+		return err
+	}
+	log.Printf("Calling create")
+	_, err = dst.Create(id, reader)
+	return err
 }
 
 func (self *CachingChunkService) IsChunkLocalOnly(id ChunkID) bool {
-	//	_, ok := self.is_local[id]
-	//	return ok
-	panic("unimp")
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
+	value, ok := self.is_local[id]
+	if !ok {
+		return false
+	}
+
+	return value
 }
 
 func (self *CachingChunkService) UpdateChunkStatus(id ChunkID, isLocal bool) {
-	panic("unimp")
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
+	self.is_local[id] = isLocal
 }
 
 func (self *CachingChunkService) Read(id ChunkID, offset int64, size int64) (io.Reader, *FileMetadata, error) {
+	log.Printf("CachingChunkService: Read %s %d %d", string(id), offset, size)
 	has_chunk, err := self.local.HasChunk(id)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	if(has_chunk) {
+		log.Printf("CachingChunkService: had chunk locally")
 		return self.local.Read(id, offset, size)
 	}
 
 	// if we don't have it locally, then pull it from the remote
+	log.Printf("CachingChunkService: copying chunk from remote")
 	copyErr := copyChunk(id, self.remote, self.local)
 	if copyErr == nil {
 		return nil, nil, copyErr
+	}
+	h, _ := self.local.HasChunk(id)
+	if ! h {
+		panic("Chunk missing after copy")
 	}
 
 	// Then serve it from local

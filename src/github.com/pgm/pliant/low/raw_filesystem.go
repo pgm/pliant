@@ -234,5 +234,33 @@ func (self * RawFilesystem) NewFile(content io.Reader) (ChunkID, *FileMetadata, 
 }
 
 func (self *RawFilesystem) VisitReachable(id ChunkID, visitor IdVisitor) {
-	panic("unimp")
+	seen := make(map[ChunkID] bool)
+	queue := make([]ChunkID, 0, 100)
+	queue = append(queue, id)
+
+	for len(queue) > 0 {
+		// pop from end
+		idFromQueue := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+
+		_, hasSeen := seen[idFromQueue]
+		if hasSeen {
+			continue
+		}
+
+		seen[idFromQueue] = true
+
+		dir, err := self.ReadDir(idFromQueue)
+		if err != nil {
+			panic(err.Error())
+		}
+		entries := dir.GetEntries()
+		for _, e := range(entries) {
+			nextChunk := ChunkID(e.GetChunk())
+			visitor(nextChunk)
+			if ChunkType(e.GetType()) == DIR_TYPE {
+				queue = append(queue, nextChunk)
+			}
+		}
+	}
 }

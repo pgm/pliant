@@ -16,7 +16,8 @@ func makeFilesystem2() *Filesystem{
 	labels := NewMemLabelService()
 
 	rawFs := NewRawFilesystem(chunks)
-	return NewFilesystem(labels, rawFs)
+	fs := NewFilesystem(labels, rawFs)
+	return &fs
 }
 
 func (s *FilesystemApiSuite) TestMakeFiles (c *C) {

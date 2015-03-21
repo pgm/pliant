@@ -18,9 +18,8 @@ type Filesystem struct {
 	labelLocks map[string] *sync.RWMutex
 }
 
-func NewFilesystem(labels LabelService, rawFs *RawFilesystem) *Filesystem {
-	fs := &Filesystem{labels: labels, fs: rawFs, labelLocks: make(map[string] *sync.RWMutex)}
-	return fs
+func NewFilesystem(labels LabelService, rawFs *RawFilesystem) Filesystem {
+	return Filesystem{labels: labels, fs: rawFs, labelLocks: make(map[string] *sync.RWMutex)}
 }
 
 func (self *Filesystem) LabelEmptyDir(label string) error {
