@@ -46,6 +46,16 @@ func NewMemChunkService() *MemChunkService {
 		metadata: make(map[ChunkID] *FileMetadata)}
 }
 
+func (self *MemChunkService) PrintDebug() {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
+	log.Printf("%d chunks in %p\n", len(self.metadata), self)
+	for id, _ := range(self.metadata) {
+		log.Printf("chunk %s\n", string(id))
+	}
+}
+
 func (self *MemChunkService) HasChunk(id ChunkID) (bool, error) {
 	self.lock.Lock()
 	_, hasKey := self.table[id]
@@ -119,6 +129,7 @@ type CachingChunkService struct {
 	lock sync.Mutex
 	is_local map[ChunkID] bool
 }
+
 
 func NewCachingChunkService(local ChunkService,
 	remote ChunkService) * CachingChunkService {
