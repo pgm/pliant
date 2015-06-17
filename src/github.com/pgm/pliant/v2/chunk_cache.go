@@ -2,7 +2,6 @@ package v2
 
 import (
 "sync"
-
 )
 
 type sourceEnum int;
@@ -15,13 +14,13 @@ const (
 
 type cacheEntry struct {
 	source sourceEnum
-	resource *Resource
+	resource Resource
 }
 
 type cacheDB interface {
 	// All methods are threadsafe
 	Get(key *Key) *cacheEntry;
-	Put(key *Key, *cacheEntry);
+	Put(key *Key, entry *cacheEntry);
 }
 
 type ChunkCache struct {
@@ -30,30 +29,31 @@ type ChunkCache struct {
 	inProgress map[*Key] *Key; // a "set" of keys which are currently being fetched from remote
 
 	lock sync.Mutex;
-	cond sync.Cond;
+	cond *sync.Cond;
 }
 
 func NewChunkCache(remote ChunkService, local cacheDB) *ChunkCache {
 	c := &ChunkCache{remote: remote, local: local, inProgress: make(map[*Key]*Key)};
-	c.cond = sync.NewCond(c.lock)
+	c.cond = sync.NewCond(&c.lock)
 	return c;
 }
 
 func (c *ChunkCache) Put(key *Key, resource *Resource) {
-	c.local.Put(key, &cacheEntry{source: LOCAL, resource});
+	c.local.Put(key, &cacheEntry{source: LOCAL, resource: resource});
 }
 
 func (c *ChunkCache) isKeyBeingFetched(key *Key) bool {
-	_, keyInProgress := c.inProgress;
+	_, keyInProgress := c.inProgress[key];
 	return keyInProgress;
 }
 
-func (c *ChunkCache) Get(key *Key) *Resource {
+func (c *ChunkCache) Get(key *Key) Resource {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	resource := c.local.Get(key)
-	if resource == nil {
+	var resource Resource
+	entry := c.local.Get(key)
+	if entry == nil {
 		if c.isKeyBeingFetched(key) {
 			for c.isKeyBeingFetched(key) {
 				c.cond.Wait();
@@ -62,31 +62,14 @@ func (c *ChunkCache) Get(key *Key) *Resource {
 		} else {
 			c.inProgress[key] = key;
 			resource = c.remote.Get(key)
-			c.local.Put(key, &cacheEntry{source: REMOTE, resource})
-			delete(c.inProgress[key])
+			c.local.Put(key, &cacheEntry{source: REMOTE, resource: resource})
+			delete(c.inProgress, key)
 			c.cond.Broadcast()
 		}
+	} else {
+		resource = entry.resource;
 	}
 	return resource;
-}
-
-type MemChunkService struct {
-	lock sync.Mutex
-	chunks map[*Key] *Resource
-}
-
-func (c *MemChunkService) Get(key *Key) *Resource {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	return c.chunks[key];
-}
-
-func (c *MemChunkService) Put(key *Key, resource *Resource) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	c.chunks[key] = resource
 }
 
 type memcacheDB struct {
@@ -94,14 +77,14 @@ type memcacheDB struct {
 	entries map[*Key] *cacheEntry
 }
 
-func (c *MemChunkService) Get(key *Key) *cacheEntry {
+func (c *memcacheDB) Get(key *Key) *cacheEntry {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	return c.chunks[key];
+	return c.entries[key];
 }
 
-func (c *MemChunkService) Put(key *Key, entry *cacheEntry) {
+func (c *memcacheDB) Put(key *Key, entry *cacheEntry) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 

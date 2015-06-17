@@ -15,11 +15,11 @@ type NodeStore interface {
 
 type LeafEntry struct {
 	name string;
-	metadata FileMetadata;
+	metadata *FileMetadata;
 }
 
 type Leaf struct {
-	entries []LeafEntry;
+	entries []*LeafEntry;
 }
 
 type BranchEntry struct {
@@ -47,7 +47,7 @@ type TreeStats struct {
 }
 
 func CopyLeafWithMutation(leaf *Leaf, replaceIndex int, entry *LeafEntry) *Leaf {
-	newLeaf := &Leaf{entries: make([]LeafEntry, len(leaf.entries))}
+	newLeaf := &Leaf{entries: make([]*LeafEntry, len(leaf.entries))}
 	for i := 0; i<len(leaf.entries) ; i++  {
 		if i == replaceIndex {
 			newLeaf.entries[i] = entry;
@@ -60,7 +60,7 @@ func CopyLeafWithMutation(leaf *Leaf, replaceIndex int, entry *LeafEntry) *Leaf 
 }
 
 func CopyLeafWithInsertion(leaf *Leaf, insertIndex int, entry *LeafEntry) *Leaf {
-	newLeaf := &Leaf{entries: make([]LeafEntry, len(leaf.entries)+1)}
+	newLeaf := &Leaf{entries: make([]*LeafEntry, len(leaf.entries)+1)}
 	for i := 0; i<insertIndex ; i++  {
 		newLeaf.entries[i] = leaf.entries[i];
 	}
@@ -73,7 +73,7 @@ func CopyLeafWithInsertion(leaf *Leaf, insertIndex int, entry *LeafEntry) *Leaf 
 }
 
 func CopyLeafWithRemoval(leaf *Leaf, removeIndex int) *Leaf {
-	newLeaf := &Leaf{entries: make([]LeafEntry, len(leaf.entries)-1)}
+	newLeaf := &Leaf{entries: make([]*LeafEntry, len(leaf.entries)-1)}
 	for i := 0; i<removeIndex ; i++  {
 		newLeaf.entries[i] = leaf.entries[i];
 	}
@@ -84,6 +84,9 @@ func CopyLeafWithRemoval(leaf *Leaf, removeIndex int) *Leaf {
 	return newLeaf;
 }
 
+func (leaf *Leaf) get(name string) * FileMetadata {
+	panic("unimp")
+}
 
 func (leaf *Leaf) insert(entry * LeafEntry) * Leaf {
 	i := sort.Search(len(leaf.entries), func(i int) bool {
@@ -131,21 +134,21 @@ func NewLeafDirService(chunks ChunkService) *LeafDirService {
 	return &LeafDirService{chunks: chunks};
 }
 
-func (s *LeafDirService) GetDirectory(key *Key) *Directory {
+func (s *LeafDirService) GetDirectory(key *Key) Directory {
 	return &LeafDir{chunks: s.chunks, key: key};
 }
 
 func (d *LeafDir) readLeaf(key *Key) *Leaf {
-	panic();
+	panic("unimp");
 }
 
 func (d *LeafDir) writeLeaf(leaf *Leaf) *Key {
-	panic();
+	panic("unimp");
 }
 
 func (d *LeafDir) Get(name string) *FileMetadata {
 	leaf := d.readLeaf(d.key)
-	return leaf.Get(name)
+	return leaf.get(name)
 }
 
 func (d *LeafDir) Put(name string, metadata *FileMetadata) *Key {
@@ -183,11 +186,11 @@ func (it *LeafIterator) Next() (string, *FileMetadata) {
 		it.reachedEnd = true;
 	}
 
-	return next.name, &next.metadata;
+	return next.name, next.metadata;
 }
 
 
-func (d *LeafDir) Iterate() *Iterator {
+func (d *LeafDir) Iterate() Iterator {
 	leaf := d.readLeaf(d.key)
 	return &LeafIterator{leafIndex: 0, leaf: leaf, reachedEnd: len(leaf.entries) == 0};
 }

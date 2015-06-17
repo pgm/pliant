@@ -21,17 +21,17 @@ type Atomic interface {
 
 // A wrapper around Atomic which uses simple types for its parameters.
 type AtomicClient struct {
-	atomic *Atomic
+	atomic Atomic
 }
 
 func (ac *AtomicClient) GetKey(path string) string {
 	parsedPath := NewPath(path);
 	metadata := ac.atomic.GetMetadata(parsedPath)
-	return metadata.GetKey().ToString();
+	return KeyFromBytes(metadata.GetKey()).String();
 }
 
 func (ac *AtomicClient) GetLocalPath(path string) string {
-	panic();
+	panic("unimp");
 }
 
 func (ac *AtomicClient) Link(key string, path string) {
@@ -46,11 +46,11 @@ func (ac *AtomicClient) Unlink(path string) {
 }
 
 type AtomicState struct {
-	dirService *DirectoryService;
+	dirService DirectoryService;
 	roots map[string] *Key;
 }
 
-func (self *AtomicState) getDirsFromPath(path *Path) []*Directory {
+func (self *AtomicState) getDirsFromPath(path *Path) []Directory {
 	// otherwise we need to decend in until we find the parent
 	parentDirs := make([]Directory,0,0);
 	dirKey, ok := self.roots[path.path[0]];
@@ -59,25 +59,30 @@ func (self *AtomicState) getDirsFromPath(path *Path) []*Directory {
 	}
 	i := 0
 	for {
-		dir := self.store.GetDirectory(dirKey)
+		dir := self.dirService.GetDirectory(dirKey)
 		parentDirs = append(parentDirs, dir);
 		i++;
 		if i >= len(path.path) {
 			break
 		}
 		metadata := dir.Get(path.path[i])
-		if metadata == nil || !metadata.IsDir() {
+		if metadata == nil || !metadata.GetIsDir() {
 			return nil;
 		}
-		dirKey = metadata.GetMd5()
+		dirKey = KeyFromBytes(metadata.GetKey());
 	}
 	return parentDirs;
 }
 
-func (self *AtomicState) GetDirectoryIterator(path *Path) *Iterator {
+func (self *AtomicState) getDirFromPath(path *Path) Directory {
+	dirs := self.getDirsFromPath(path)
+	return dirs[len(dirs)-1];
+}
+
+func (self *AtomicState) GetDirectoryIterator(path *Path) Iterator {
 	if len(path.path) == 0 {
 		// Create a fake Leaf node in memory with these files and then return NamespaceIterator over this
-		panic();
+		panic("unimp");
 	}
 
 	finalDir := self.getDirFromPath(path);
@@ -133,7 +138,7 @@ func (self *AtomicState) Unlink(path *Path) {
 
 		parentDir := self.getDirFromPath(parentPath);
 		if parentDir == nil {
-			panic();
+			panic("unimp");
 		}
 
 		parentDir.Remove(filename);

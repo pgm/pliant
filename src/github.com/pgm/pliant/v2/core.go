@@ -2,14 +2,21 @@ package v2
 
 type Key [32] byte;
 
-var EMPTY_DIR_KEY *Key = &([32]byte{1,0,0,0,0,0,0,0,0,0,0});
+var EMPTY_DIR_KEY_ Key = ([32]byte{1,0,0,0,0,0,0,0,0,0,0});
+var EMPTY_DIR_KEY *Key = &EMPTY_DIR_KEY_;
 
 func (k *Key) String() string {
-	panic();
+	panic("unimp");
 }
 
 func NewKey(key string) *Key {
-	panic()
+	panic("unimp")
+}
+
+func KeyFromBytes(bytes []byte) *Key {
+	var k Key;
+	copy(k[:], bytes);
+	return &k;
 }
 
 type Directory interface {
@@ -19,7 +26,7 @@ type Directory interface {
 	Get(name string) *FileMetadata;
 	Put(name string, metadata *FileMetadata) *Key;
 	Remove(name string) *Key;
-	Iterate() *Iterator;
+	Iterate() Iterator;
 }
 
 type Iterator interface {
@@ -28,7 +35,7 @@ type Iterator interface {
 }
 
 type DirectoryService interface {
-	GetDirectory(key *Key) *Directory;
+	GetDirectory(key *Key) Directory;
 }
 
 type Resource interface {
@@ -36,8 +43,8 @@ type Resource interface {
 
 type ChunkService interface {
 	// all methods are threadsafe
-	Get(key *Key) *Resource;
-	Put(key *Key, *Resource);
+	Get(key *Key) Resource;
+	Put(key *Key, resource Resource);
 }
 
 type TagService interface {

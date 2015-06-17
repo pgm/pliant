@@ -6,10 +6,10 @@ type Path struct {
 
 func (*Path) Split() (*Path, string){
 	// split a path into parent directory path and filename
-	panic();
+	panic("unimp");
 }
 
 func NewPath(path string) *Path {
 	// parse a path into structure
-	panic();
+	panic("unimp");
 }
