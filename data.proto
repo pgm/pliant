@@ -7,13 +7,11 @@ message FileMetadata {
     optional bool IsDir = 4;
 }
 
-message DirEntry {
-	required string name = 1;
-	optional int32 type = 2;
-	optional string chunk = 3;
-	optional FileMetadata metadata = 4;
+message LeafRecordEntry {
+    required string name = 1;
+    required FileMetadata metadata = 2;
 }
 
-message Dir {
-	repeated DirEntry entries = 1;
+message LeafRecord {
+    repeated LeafRecordEntry entries = 1;
 }

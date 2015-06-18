@@ -1,6 +1,13 @@
 package v2
 
-import "sort"
+import (
+	"sort"
+	"github.com/golang/protobuf/proto"
+	"fmt"
+	"crypto/sha256"
+)
+
+var EMPTY_DIR = Leaf{entries: make([]*LeafEntry,0,10)}
 
 type NodeStore interface {
 	// serialization and deserialization of BTree nodes
@@ -47,7 +54,7 @@ type TreeStats struct {
 }
 
 func CopyLeafWithMutation(leaf *Leaf, replaceIndex int, entry *LeafEntry) *Leaf {
-	newLeaf := &Leaf{entries: make([]*LeafEntry, len(leaf.entries))}
+	newLeaf := &Leaf{entries: make([]*LeafEntry, 0, len(leaf.entries))}
 	for i := 0; i<len(leaf.entries) ; i++  {
 		if i == replaceIndex {
 			newLeaf.entries[i] = entry;
@@ -95,7 +102,7 @@ func (leaf *Leaf) insert(entry * LeafEntry) * Leaf {
 
 	// replace existing entry
 	var newLeaf *Leaf;
-	if(leaf.entries[i].name == entry.name) {
+	if(len(leaf.entries) > i && leaf.entries[i].name == entry.name) {
 		newLeaf = CopyLeafWithMutation(leaf, i, entry);
 //		stats.valuesReplaced ++;
 	} else {
@@ -138,12 +145,60 @@ func (s *LeafDirService) GetDirectory(key *Key) Directory {
 	return &LeafDir{chunks: s.chunks, key: key};
 }
 
+func UnpackLeafEntry(entry *LeafRecordEntry) *LeafEntry {
+	return &LeafEntry{name: entry.GetName(), metadata: entry.GetMetadata()};
+}
+
+func UnpackLeaf(data []byte) * Leaf{
+	dest := &LeafRecord{}
+	err := proto.Unmarshal(data, dest)
+	if err != nil {
+		panic(fmt.Sprintf("Could not unmarshal leaf: %s", err.Error()))
+	}
+
+	// convert LeafRecord to Leaf
+	entries := make([]*LeafEntry, 0, len(dest.GetEntries()));
+	for _, entry := range(dest.GetEntries()) {
+		entries = append(entries, UnpackLeafEntry(entry))
+	}
+	return &Leaf{entries: entries}
+}
+
+func PackLeaf(leaf *Leaf) []byte{
+	entries := make([]*LeafRecordEntry, 0, len(leaf.entries))
+	for _, entry := range(leaf.entries) {
+		entries = append(entries, &LeafRecordEntry{Name: &entry.name, Metadata: entry.metadata})
+	}
+
+	src := &LeafRecord{Entries: entries}
+
+	data, err := proto.Marshal(src)
+	if err != nil {
+		panic(fmt.Sprintf("Couldn't marshal metadata object: %s", err))
+	}
+	return data
+
+}
+
 func (d *LeafDir) readLeaf(key *Key) *Leaf {
-	panic("unimp");
+	if *key == *EMPTY_DIR_KEY {
+		return &EMPTY_DIR
+	} else {
+		resource := d.chunks.Get(key)
+		return UnpackLeaf(resource.AsBytes())
+	}
 }
 
 func (d *LeafDir) writeLeaf(leaf *Leaf) *Key {
-	panic("unimp");
+	buffer := PackLeaf(leaf)
+	newLeafKey := computeContentKey(buffer)
+	d.chunks.Put(newLeafKey, NewMemResource(buffer))
+	return newLeafKey;
+}
+
+func computeContentKey(buffer []byte) *Key {
+	key := Key(sha256.Sum256(buffer))
+	return &key
 }
 
 func (d *LeafDir) Get(name string) *FileMetadata {

@@ -1,16 +1,29 @@
 package v2
 
+import (
+	"encoding/base64"
+	"bytes"
+	"strings"
+)
+
 type Key [32] byte;
 
 var EMPTY_DIR_KEY_ Key = ([32]byte{1,0,0,0,0,0,0,0,0,0,0});
 var EMPTY_DIR_KEY *Key = &EMPTY_DIR_KEY_;
 
+
 func (k *Key) String() string {
-	panic("unimp");
+	b := bytes.NewBuffer(make([]byte,100))
+	e := base64.NewEncoder(base64.StdEncoding, b)
+	e.Write((*k)[:])
+	return string(b.Bytes())
 }
 
 func NewKey(key string) *Key {
-	panic("unimp")
+	e := base64.NewDecoder(base64.StdEncoding, strings.NewReader(key[:]))
+	b := bytes.NewBuffer(make([]byte,100))
+	b.ReadFrom(e)
+	return KeyFromBytes(b.Bytes())
 }
 
 func KeyFromBytes(bytes []byte) *Key {
@@ -39,6 +52,7 @@ type DirectoryService interface {
 }
 
 type Resource interface {
+	AsBytes() []byte
 }
 
 type ChunkService interface {

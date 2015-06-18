@@ -38,7 +38,7 @@ func NewChunkCache(remote ChunkService, local cacheDB) *ChunkCache {
 	return c;
 }
 
-func (c *ChunkCache) Put(key *Key, resource *Resource) {
+func (c *ChunkCache) Put(key *Key, resource Resource) {
 	c.local.Put(key, &cacheEntry{source: LOCAL, resource: resource});
 }
 
@@ -58,7 +58,7 @@ func (c *ChunkCache) Get(key *Key) Resource {
 			for c.isKeyBeingFetched(key) {
 				c.cond.Wait();
 			}
-			resource = c.local.Get(key)
+			resource = c.local.Get(key).resource
 		} else {
 			c.inProgress[key] = key;
 			resource = c.remote.Get(key)

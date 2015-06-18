@@ -2,7 +2,7 @@ package v2
 
 import (
 . "gopkg.in/check.v1"
-"fmt"
+  "fmt"
 	"testing"
 
 )
@@ -38,10 +38,17 @@ func (s *BtreeSuite) TestBtreeInserts(c *C) {
 	d4 := ds.GetDirectory(key4)
 
 	e1 := [...]string{"t","x","y","z"};
-	c.Assert(fetchNames(d4), Equals, e1[:])
+	c.Assert(fetchNames(d4), DeepEquals, e1[:])
+
+	key5 := d4.Remove("t")
+	d5 := ds.GetDirectory(key5)
+	key6 := d5.Remove("y")
+	d6 := ds.GetDirectory(key6)
+	key7 := d6.Remove("z")
+	d7 := ds.GetDirectory(key7)
 
 	e2 := [...]string{"x"}
-	c.Assert(fetchNames(d4), Equals, e2[:])
+	c.Assert(fetchNames(d7), DeepEquals, e2[:])
 }
 
 func (s *BtreeSuite) TestBtreeDirService (c *C) {
@@ -67,7 +74,7 @@ func (s *BtreeSuite) TestBtreeDirService (c *C) {
 	c.Assert(it1.HasNext(), Equals, false)
 
 	// now make sure remove basically works
-	key2 := d0.Remove("x")
+	key2 := d1.Remove("x")
 
 	d2 := ds.GetDirectory(key2)
 
