@@ -52,27 +52,28 @@ type PutLocalPathArgs struct {
 }
 
 func (ac *AtomicClient) PutLocalPath(args *PutLocalPathArgs, result *string) error {
-	parsedPath := NewPath(destPath);
-	cachedPath = CacheFile(localPath)
-	resource := NewFileResource(cachedPath);
-	ac.atomic.Put()
+	panic("unimp")
+//	parsedPath := NewPath(destPath);
+//	cachedPath = CacheFile(localPath)
+//	resource := NewFileResource(cachedPath);
+//	ac.atomic.Put()
 }
 
 type LinkArgs struct {
-	key string
-	path string
-	isDir bool
+	Key string
+	Path string
+	IsDir bool
 }
 
-func (ac *AtomicClient) Link(args LinkArgs, result *string) error {
-	parsedPath := NewPath(path);
-	parsedKey := NewKey(key)
-	ac.atomic.Link(parsedKey, parsedPath, isDir);
+func (ac *AtomicClient) Link(args *LinkArgs, result *string) error {
+	parsedPath := NewPath(args.Path);
+	parsedKey := NewKey(args.Key)
+	return ac.atomic.Link(parsedKey, parsedPath, args.IsDir);
 }
 
 func (ac *AtomicClient) Unlink(path string, result *string) error {
 	parsedPath := NewPath(path);
-	ac.atomic.Unlink(parsedPath);
+	return ac.atomic.Unlink(parsedPath);
 }
 
 

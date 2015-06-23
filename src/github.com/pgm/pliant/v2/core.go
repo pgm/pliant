@@ -68,7 +68,7 @@ type Resource interface {
 }
 
 type FileResource struct {
-	filename
+	filename string
 }
 
 type ChunkService interface {
