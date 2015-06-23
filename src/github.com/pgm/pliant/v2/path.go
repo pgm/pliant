@@ -1,15 +1,23 @@
 package v2
 
+import ( "strings")
+
 type Path struct {
 	path [] string;
 }
 
-func (*Path) Split() (*Path, string){
+func (p *Path) Split() (*Path, string){
 	// split a path into parent directory path and filename
-	panic("unimp");
+	//if len()p.path
+	 last := len(p.path)-1
+	return &Path{path: p.path[0:(last)]}, p.path[last]
 }
 
 func NewPath(path string) *Path {
-	// parse a path into structure
-	panic("unimp");
+	if path == "" {
+		return &Path{path: make([]string, 0)}
+	}
+	// TODO: add validation of components of path and canonicalize path
+	components := strings.Split(path, "/")
+	return &Path{path: components}
 }

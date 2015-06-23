@@ -54,7 +54,7 @@ type TreeStats struct {
 }
 
 func CopyLeafWithMutation(leaf *Leaf, replaceIndex int, entry *LeafEntry) *Leaf {
-	newLeaf := &Leaf{entries: make([]*LeafEntry, 0, len(leaf.entries))}
+	newLeaf := &Leaf{entries: make([]*LeafEntry, len(leaf.entries))}
 	for i := 0; i<len(leaf.entries) ; i++  {
 		if i == replaceIndex {
 			newLeaf.entries[i] = entry;
@@ -91,8 +91,16 @@ func CopyLeafWithRemoval(leaf *Leaf, removeIndex int) *Leaf {
 	return newLeaf;
 }
 
-func (leaf *Leaf) get(name string) * FileMetadata {
-	panic("unimp")
+func (leaf *Leaf) get(name string) *FileMetadata {
+	i := sort.Search(len(leaf.entries), func(i int) bool {
+			return leaf.entries[i].name >= name;
+		});
+
+	if i < len(leaf.entries) && leaf.entries[i].name == name {
+		return leaf.entries[i].metadata
+	}
+
+	return nil
 }
 
 func (leaf *Leaf) insert(entry * LeafEntry) * Leaf {
@@ -167,7 +175,11 @@ func UnpackLeaf(data []byte) * Leaf{
 func PackLeaf(leaf *Leaf) []byte{
 	entries := make([]*LeafRecordEntry, 0, len(leaf.entries))
 	for _, entry := range(leaf.entries) {
-		entries = append(entries, &LeafRecordEntry{Name: &entry.name, Metadata: entry.metadata})
+		if entry.metadata == nil {
+			panic("entry.metadata")
+		}
+		e := &LeafRecordEntry{Name: &entry.name, Metadata: entry.metadata}
+		entries = append(entries, e)
 	}
 
 	src := &LeafRecord{Entries: entries}
@@ -208,6 +220,9 @@ func (d *LeafDir) Get(name string) *FileMetadata {
 
 func (d *LeafDir) Put(name string, metadata *FileMetadata) *Key {
 	leaf := d.readLeaf(d.key)
+	if metadata == nil {
+		panic(fmt.Sprintf(">>>> metadata = %s\n", metadata))
+	}
 	newLeaf := leaf.insert(&LeafEntry{name: name, metadata: metadata})
 	return d.writeLeaf(newLeaf)
 }

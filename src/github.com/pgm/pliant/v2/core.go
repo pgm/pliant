@@ -4,24 +4,35 @@ import (
 	"encoding/base64"
 	"bytes"
 	"strings"
+	"io"
 )
 
 type Key [32] byte;
 
-var EMPTY_DIR_KEY_ Key = ([32]byte{1,0,0,0,0,0,0,0,0,0,0});
+var EMPTY_DIR_KEY_ Key = ([32]byte{1});
 var EMPTY_DIR_KEY *Key = &EMPTY_DIR_KEY_;
 
-
 func (k *Key) String() string {
-	b := bytes.NewBuffer(make([]byte,100))
+	b := bytes.NewBuffer(make([]byte,0,100))
 	e := base64.NewEncoder(base64.StdEncoding, b)
 	e.Write((*k)[:])
-	return string(b.Bytes())
+	s := string(b.Bytes())
+	if len(s) != 40 {
+		panic("invalid length")
+	}
+	return s
+}
+
+func (k *Key) AsBytes() []byte {
+	return k[:]
 }
 
 func NewKey(key string) *Key {
+	if len(key) != 40 {
+		panic("invalid length")
+	}
 	e := base64.NewDecoder(base64.StdEncoding, strings.NewReader(key[:]))
-	b := bytes.NewBuffer(make([]byte,100))
+	b := bytes.NewBuffer(make([]byte,0,100))
 	b.ReadFrom(e)
 	return KeyFromBytes(b.Bytes())
 }
@@ -53,6 +64,11 @@ type DirectoryService interface {
 
 type Resource interface {
 	AsBytes() []byte
+	GetReader() io.Reader
+}
+
+type FileResource struct {
+	filename
 }
 
 type ChunkService interface {

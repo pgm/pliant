@@ -15,3 +15,55 @@ message LeafRecordEntry {
 message LeafRecord {
     repeated LeafRecordEntry entries = 1;
 }
+
+//////////////////////////
+
+message GetKeyReq {
+    required string path = 1;
+}
+
+message GetKeyResp {
+    required bool isSuccess = 1;
+    optional string key = 2;
+}
+
+message GetLocalPathReq {
+    required string path = 1;
+}
+
+message GetLocalPathResp {
+    required bool isSuccess = 1;
+    optional string path = 2;
+}
+
+// responses with SimpleResp
+message PutLocalPathReq {
+    required string path = 1;
+}
+
+// responses with SimpleResp
+message LinkReq {
+    required string key = 1;
+    required string path = 2;
+    required bool isDir = 3;
+}
+
+// responses with SimpleResp
+message UnlinkReq {
+    required string path = 1;
+}
+
+message SimpleResp {
+    required bool isSuccess = 1;
+}
+
+message Request {
+    enum Type { GET_KEY = 1; GET_LOCAL_PATH = 2; PUT_LOCAL_PATH = 3; LINK = 4; UNLINK = 5; }
+    required Type type = 1;
+
+    optional GetKeyReq GetKey = 2;
+    optional GetLocalPathReq GetLocalPath=3;
+    optional PutLocalPathReq PutLocalPath=4;
+    optional LinkReq Link = 5;
+    optional UnlinkReq Unlink = 6;
+}

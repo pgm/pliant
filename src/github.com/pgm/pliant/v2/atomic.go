@@ -1,17 +1,25 @@
 package v2
 
+import (
+	"github.com/golang/protobuf/proto"
+	"errors"
+	"fmt"
+)
+
+var NO_SUCH_PATH = errors.New("No such path")
+
 type Atomic interface {
 	// This interface connects paths which appear mutable with
 	// the copy-on-write directory APIs below it
 
-	GetDirectoryIterator(path *Path) *Iterator;
-	GetMetadata(path *Path) *FileMetadata;
+	GetDirectoryIterator(path *Path) (Iterator, error);
+	GetMetadata(path *Path) (*FileMetadata, error);
 
-	Put(destination *Path, resource *Resource) *Key;
-	Get(destination *Path) *Resource;
+	Put(destination *Path, resource Resource) (*Key, error);
+//	Get(destination *Path) *Resource;
 
-	Link(key *Key, path *Path);
-	Unlink(path *Path);
+	Link(key *Key, path *Path, isDir bool) error;
+	Unlink(path *Path) error;
 
 	//TODO
 	//Pull(tag string, lease *Lease) *Key;
@@ -24,40 +32,74 @@ type AtomicClient struct {
 	atomic Atomic
 }
 
-func (ac *AtomicClient) GetKey(path string) string {
+func (ac *AtomicClient) GetKey(path string, key *string) error {
 	parsedPath := NewPath(path);
-	metadata := ac.atomic.GetMetadata(parsedPath)
-	return KeyFromBytes(metadata.GetKey()).String();
+	metadata, err := ac.atomic.GetMetadata(parsedPath)
+	if err != nil {
+		return err
+	}
+	*key = KeyFromBytes(metadata.GetKey()).String()
+	return nil;
 }
 
-func (ac *AtomicClient) GetLocalPath(path string) string {
+func (ac *AtomicClient) GetLocalPath(path string, localPath *string) error {
 	panic("unimp");
 }
 
-func (ac *AtomicClient) Link(key string, path string) {
-	parsedPath := NewPath(path);
-	parsedKey := NewKey(key)
-	ac.atomic.Link(parsedKey, parsedPath);
+type PutLocalPathArgs struct {
+	localPath string;
+	destPath string
 }
 
-func (ac *AtomicClient) Unlink(path string) {
+func (ac *AtomicClient) PutLocalPath(args *PutLocalPathArgs, result *string) error {
+	parsedPath := NewPath(destPath);
+	cachedPath = CacheFile(localPath)
+	resource := NewFileResource(cachedPath);
+	ac.atomic.Put()
+}
+
+type LinkArgs struct {
+	key string
+	path string
+	isDir bool
+}
+
+func (ac *AtomicClient) Link(args LinkArgs, result *string) error {
+	parsedPath := NewPath(path);
+	parsedKey := NewKey(key)
+	ac.atomic.Link(parsedKey, parsedPath, isDir);
+}
+
+func (ac *AtomicClient) Unlink(path string, result *string) error {
 	parsedPath := NewPath(path);
 	ac.atomic.Unlink(parsedPath);
 }
 
+
 type AtomicState struct {
+	// TODO: Add lock to protect access to roots
 	dirService DirectoryService;
-	roots map[string] *Key;
+	roots map[string] *FileMetadata;
 }
 
-func (self *AtomicState) getDirsFromPath(path *Path) []Directory {
+func NewAtomicState(dirService DirectoryService) *AtomicState {
+	return &AtomicState{dirService: dirService, roots: make(map[string]*FileMetadata)}
+}
+
+func (self *AtomicState) getDirsFromPath(path *Path) ([]Directory, error) {
 	// otherwise we need to decend in until we find the parent
-	parentDirs := make([]Directory,0,0);
-	dirKey, ok := self.roots[path.path[0]];
+	parentDirs := make([]Directory,0,len(path.path));
+	dirMetadata, ok := self.roots[path.path[0]];
 	if ! ok {
-		return nil;
+		fmt.Printf("Root keys:\n")
+		for k, v := range(self.roots) {
+			fmt.Printf("  %s: %s\n", k, v)
+		}
+		panic(fmt.Sprintf("Could not find \"%s\"", path.path[0]))
+		return nil, NO_SUCH_PATH;
 	}
 	i := 0
+	dirKey := KeyFromBytes(dirMetadata.GetKey())
 	for {
 		dir := self.dirService.GetDirectory(dirKey)
 		parentDirs = append(parentDirs, dir);
@@ -67,80 +109,136 @@ func (self *AtomicState) getDirsFromPath(path *Path) []Directory {
 		}
 		metadata := dir.Get(path.path[i])
 		if metadata == nil || !metadata.GetIsDir() {
-			return nil;
+			return nil, NO_SUCH_PATH;
 		}
 		dirKey = KeyFromBytes(metadata.GetKey());
 	}
-	return parentDirs;
+	return parentDirs, nil;
 }
 
-func (self *AtomicState) getDirFromPath(path *Path) Directory {
-	dirs := self.getDirsFromPath(path)
-	return dirs[len(dirs)-1];
+func (self *AtomicState) getDirFromPath(path *Path) (Directory, error) {
+	dirs, err := self.getDirsFromPath(path)
+	if err != nil {
+		return nil, err
+	}
+	return dirs[len(dirs)-1], nil;
 }
 
-func (self *AtomicState) GetDirectoryIterator(path *Path) Iterator {
+type MemDirIterator struct {
+	index int
+	names []string
+	metadatas []*FileMetadata
+}
+
+func (m *MemDirIterator) HasNext() bool {
+	return m.index < len(m.names);
+}
+
+func (m *MemDirIterator) Next() (string, *FileMetadata) {
+	i := m.index
+	m.index += 1
+	return m.names[i], m.metadatas[i]
+}
+
+func NewMemDirIterator(names []string, metadatas []*FileMetadata) Iterator {
+	return &MemDirIterator{index: 0, names: names, metadatas: metadatas}
+}
+
+func (self *AtomicState) GetDirectoryIterator(path *Path) (Iterator, error) {
 	if len(path.path) == 0 {
-		// Create a fake Leaf node in memory with these files and then return NamespaceIterator over this
-		panic("unimp");
+		// make a snapshot of the directory and return an iterator over it
+		names := make([]string, len(self.roots))
+		metadatas := make([]*FileMetadata, len(self.roots))
+		i := 0
+		for k, v := range(self.roots) {
+			names[i] = k
+			metadatas[i] = v
+			i+=1
+		}
+		return NewMemDirIterator(names, metadatas), nil
 	}
 
-	finalDir := self.getDirFromPath(path);
-	if finalDir == nil {
-		return nil;
+	finalDir, err := self.getDirFromPath(path);
+	if err != nil {
+		return nil, err
 	}
-	return finalDir.Iterate();
+	return finalDir.Iterate(), nil;
 }
 
-func (self *AtomicState) GetMetadata(path *Path) *FileMetadata {
+func (self *AtomicState) GetMetadata(path *Path) (*FileMetadata, error) {
 	parentPath, filename := path.Split();
 
-	parentDir := self.getDirFromPath(parentPath);
-	if parentDir == nil {
-		return nil;
+	parentDir, error := self.getDirFromPath(parentPath);
+	if error != nil {
+		return nil, error;
 	}
 
-	return parentDir.Get(filename);
+	return parentDir.Get(filename), nil;
 }
 
-func (self *AtomicState) Link(key *Key, path *Path) {
-	// TODO: check for len(path) == 0 (error)
+func (self *AtomicState) Put(destination *Path, resource Resource) (*Key, error) {
+	buffer := resource.AsBytes()
+	key := computeContentKey(buffer)
+	parentPath, filename := destination.Split();
 
+	parentDir, error := self.getDirFromPath(parentPath);
+	if error != nil {
+		return nil, error;
+	}
+
+	metadata := &FileMetadata{Length: proto.Int64(int64(len(buffer))),
+		Key: key[:],
+		IsDir: proto.Bool(false),
+		CreationTime: proto.Int64(1)}
+	return parentDir.Put(filename, metadata), nil;
+}
+
+func (self *AtomicState) Link(key *Key, path *Path, isDir bool) error {
+	// TODO: check for len(path) == 0 (error)
 	var newParentKey *Key;
-	if len(path.path) == 1 {
+	if len(path.path) == 0 {
+		panic("invalid path")
+	} else if len(path.path) == 1 {
 		newParentKey = key;
 	} else {
 		parentPath, filename := path.Split();
 
-		parentDirs := self.getDirsFromPath(parentPath);
-		if parentDirs == nil {
-			panic("Error");
+		parentDirs, err := self.getDirsFromPath(parentPath);
+		if err != nil {
+			return err;
 		}
 
-		var metadata *FileMetadata;
-		// todo: make metadata from key
-		i := len(parentDirs)
+		var metadata *FileMetadata = &FileMetadata{Length: proto.Int64(0), Key: key.AsBytes(), IsDir: proto.Bool(isDir)};
+
+		i := len(parentDirs)-1
 		for i >= 0 {
 			newParentKey = parentDirs[i].Put(filename, metadata);
 			// update metadata to point to new metadata which points to newParentKey
-			metadata = nil;
+			metadata = &FileMetadata{Length: proto.Int64(0), Key: newParentKey.AsBytes(), IsDir: proto.Bool(true)};;
+			filename = path.path[i]
+			i -= 1
 		}
 	}
 
-	self.roots[path.path[0]] = newParentKey;
+	newParentMetadata := &FileMetadata{Length: proto.Int64(0), Key: newParentKey.AsBytes(), IsDir: proto.Bool(true)}
+
+	self.roots[path.path[0]] = newParentMetadata;
+	return nil
 }
 
-func (self *AtomicState) Unlink(path *Path) {
+func (self *AtomicState) Unlink(path *Path) error {
 	if len(path.path) == 1 {
 		delete(self.roots, path.path[0])
 	} else {
 		parentPath, filename := path.Split();
 
-		parentDir := self.getDirFromPath(parentPath);
-		if parentDir == nil {
-			panic("unimp");
+		parentDir, err := self.getDirFromPath(parentPath);
+		if err != nil {
+			return err
 		}
 
 		parentDir.Remove(filename);
 	}
+
+	return nil;
 }
