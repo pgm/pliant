@@ -1,19 +1,20 @@
 package v2
 
 import (
-. "gopkg.in/check.v1"
-  "fmt"
+	"fmt"
+	. "gopkg.in/check.v1"
 	"testing"
-
 )
 
 type BtreeSuite struct{}
+
 var _ = Suite(&BtreeSuite{})
 var _ = fmt.Sprintf("hello!")
+
 func Test(t *testing.T) { TestingT(t) }
 
 func fetchNames(d Directory) []string {
-	names := make([]string, 0);
+	names := make([]string, 0)
 	it := d.Iterate()
 	for it.HasNext() {
 		name, _ := it.Next()
@@ -27,7 +28,7 @@ func (s *BtreeSuite) TestBtreeInserts(c *C) {
 	ds := NewLeafDirService(chunks)
 	d0 := ds.GetDirectory(EMPTY_DIR_KEY)
 
-	metadata := &FileMetadata{};
+	metadata := &FileMetadata{}
 	key1 := d0.Put("z", metadata)
 	d1 := ds.GetDirectory(key1)
 	key2 := d1.Put("y", metadata)
@@ -37,7 +38,7 @@ func (s *BtreeSuite) TestBtreeInserts(c *C) {
 	key4 := d3.Put("x", metadata)
 	d4 := ds.GetDirectory(key4)
 
-	e1 := [...]string{"t","x","y","z"};
+	e1 := [...]string{"t", "x", "y", "z"}
 	c.Assert(fetchNames(d4), DeepEquals, e1[:])
 
 	key5 := d4.Remove("t")
@@ -51,7 +52,7 @@ func (s *BtreeSuite) TestBtreeInserts(c *C) {
 	c.Assert(fetchNames(d7), DeepEquals, e2[:])
 }
 
-func (s *BtreeSuite) TestBtreeDirService (c *C) {
+func (s *BtreeSuite) TestBtreeDirService(c *C) {
 	chunks := NewMemChunkService()
 	ds := NewLeafDirService(chunks)
 	d0 := ds.GetDirectory(EMPTY_DIR_KEY)
@@ -60,7 +61,7 @@ func (s *BtreeSuite) TestBtreeDirService (c *C) {
 	it := d0.Iterate()
 	c.Assert(it.HasNext(), Equals, false)
 
-	metadata := &FileMetadata{};
+	metadata := &FileMetadata{}
 	key1 := d0.Put("x", metadata)
 
 	// now we have a new directory with one entry

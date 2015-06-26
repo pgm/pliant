@@ -1,15 +1,17 @@
 package v2
 
-import ( "strings")
+import (
+	"strings"
+)
 
 type Path struct {
-	path [] string;
+	path []string
 }
 
-func (p *Path) Split() (*Path, string){
+func (p *Path) Split() (*Path, string) {
 	// split a path into parent directory path and filename
 	//if len()p.path
-	 last := len(p.path)-1
+	last := len(p.path) - 1
 	return &Path{path: p.path[0:(last)]}, p.path[last]
 }
 

@@ -1,10 +1,10 @@
 package v2
 
 import (
-"fmt"
-"io"
-"bytes"
-"github.com/golang/protobuf/proto"
+	"bytes"
+	"fmt"
+	"github.com/golang/protobuf/proto"
+	"io"
 )
 
 func PackFileMetadata(metadata *FileMetadata) []byte {
@@ -18,14 +18,14 @@ func PackFileMetadata(metadata *FileMetadata) []byte {
 func UnpackFileMetadata(r io.Reader) *FileMetadata {
 	dest := &FileMetadata{}
 	buffer := bytes.Buffer{}
-_, readErr := buffer.ReadFrom(r)
-if readErr != nil {
-panic("Could not read")
-}
-err := proto.Unmarshal(buffer.Bytes(), dest)
-if err != nil {
-panic(fmt.Sprintf("Could not unmarshal metadata: %s", err.Error()))
-}
+	_, readErr := buffer.ReadFrom(r)
+	if readErr != nil {
+		panic("Could not read")
+	}
+	err := proto.Unmarshal(buffer.Bytes(), dest)
+	if err != nil {
+		panic(fmt.Sprintf("Could not unmarshal metadata: %s", err.Error()))
+	}
 
-return dest
+	return dest
 }

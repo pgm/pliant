@@ -1,23 +1,23 @@
 package v2
 
 import (
-	"sync"
-	"log"
+	"bytes"
 	"fmt"
 	"io"
-	"bytes"
+	"log"
+	"sync"
 )
 
 type MemChunkService struct {
-	lock sync.Mutex
-	chunks map[Key] Resource
+	lock   sync.Mutex
+	chunks map[Key]Resource
 }
 
 func (c *MemChunkService) Get(key *Key) Resource {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	resource := c.chunks[*key];
+	resource := c.chunks[*key]
 	if resource == nil {
 		panic(fmt.Sprintf("Could not find key: %s", key))
 	}
@@ -32,7 +32,7 @@ func (c *MemChunkService) Put(key *Key, resource Resource) {
 }
 func NewMemChunkService() *MemChunkService {
 	return &MemChunkService{
-		chunks: make(map[Key] Resource)}
+		chunks: make(map[Key]Resource)}
 }
 
 func (self *MemChunkService) PrintDebug() {
@@ -40,28 +40,28 @@ func (self *MemChunkService) PrintDebug() {
 	defer self.lock.Unlock()
 
 	log.Printf("%d chunks in %p\n", len(self.chunks), self)
-//	for id, _ := range(self.table) {
-//		log.Printf("chunk %s\n", string(id))
-//	}
+	//	for id, _ := range(self.table) {
+	//		log.Printf("chunk %s\n", string(id))
+	//	}
 }
 
 //Get(key *Key) Resource;
 //Put(key *Key, resource Resource);
 
 type MemResource struct {
-	data []byte;
+	data []byte
 }
 
 func NewMemResource(data []byte) Resource {
-	return &MemResource{data: data};
+	return &MemResource{data: data}
 }
 
-func (r *MemResource ) AsBytes() []byte {
-	return r.data;
+func (r *MemResource) AsBytes() []byte {
+	return r.data
 }
 
-func (r *MemResource ) GetReader() io.Reader {
-	return bytes.NewBuffer(r.data);
+func (r *MemResource) GetReader() io.Reader {
+	return bytes.NewBuffer(r.data)
 }
 
 //func (self *MemChunkService) Get(key *Key) Resource {

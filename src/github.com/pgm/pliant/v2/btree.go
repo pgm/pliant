@@ -1,100 +1,100 @@
 package v2
 
 import (
-	"sort"
-	"github.com/golang/protobuf/proto"
-	"fmt"
 	"crypto/sha256"
+	"fmt"
+	"github.com/golang/protobuf/proto"
+	"sort"
 )
 
-var EMPTY_DIR = Leaf{entries: make([]*LeafEntry,0,10)}
+var EMPTY_DIR = Leaf{entries: make([]*LeafEntry, 0, 10)}
 
 type NodeStore interface {
 	// serialization and deserialization of BTree nodes
 
-	GetLeaf(key *Key) *Leaf;
-	StoreLeaf(leaf *Leaf) *Key;
-	GetBranch(key *Key) *Branch;
-	StoreBranch(branch *Branch) *Key;
+	GetLeaf(key *Key) *Leaf
+	StoreLeaf(leaf *Leaf) *Key
+	GetBranch(key *Key) *Branch
+	StoreBranch(branch *Branch) *Key
 
-	GetDirectory(key *Key) *Directory;
+	GetDirectory(key *Key) *Directory
 }
 
 type LeafEntry struct {
-	name string;
-	metadata *FileMetadata;
+	name     string
+	metadata *FileMetadata
 }
 
 type Leaf struct {
-	entries []*LeafEntry;
+	entries []*LeafEntry
 }
 
 type BranchEntry struct {
-	isLeaf bool;
-	child Key;
-	lastName string;
+	isLeaf   bool
+	child    Key
+	lastName string
 }
 
 type Branch struct {
-	children []BranchEntry;
+	children []BranchEntry
 }
 
 type TreeSettings struct {
-	MaxBlockSize int;
-	MinBlockSize int;
+	MaxBlockSize int
+	MinBlockSize int
 }
 
 type TreeStats struct {
-	leavesSplit uint32;
-	branchesSplit uint32;
-	branchesMerged uint32;
-	leavesMerged uint32;
-	valuesReplaced uint32;
-	valuesInserted uint32;
+	leavesSplit    uint32
+	branchesSplit  uint32
+	branchesMerged uint32
+	leavesMerged   uint32
+	valuesReplaced uint32
+	valuesInserted uint32
 }
 
 func CopyLeafWithMutation(leaf *Leaf, replaceIndex int, entry *LeafEntry) *Leaf {
 	newLeaf := &Leaf{entries: make([]*LeafEntry, len(leaf.entries))}
-	for i := 0; i<len(leaf.entries) ; i++  {
+	for i := 0; i < len(leaf.entries); i++ {
 		if i == replaceIndex {
-			newLeaf.entries[i] = entry;
+			newLeaf.entries[i] = entry
 		} else {
-			newLeaf.entries[i] = leaf.entries[i];
+			newLeaf.entries[i] = leaf.entries[i]
 		}
 	}
 
-	return newLeaf;
+	return newLeaf
 }
 
 func CopyLeafWithInsertion(leaf *Leaf, insertIndex int, entry *LeafEntry) *Leaf {
 	newLeaf := &Leaf{entries: make([]*LeafEntry, len(leaf.entries)+1)}
-	for i := 0; i<insertIndex ; i++  {
-		newLeaf.entries[i] = leaf.entries[i];
+	for i := 0; i < insertIndex; i++ {
+		newLeaf.entries[i] = leaf.entries[i]
 	}
-	newLeaf.entries[insertIndex] = entry;
-	for i := insertIndex; i<len(leaf.entries) ; i++  {
-		newLeaf.entries[i+1] = leaf.entries[i];
+	newLeaf.entries[insertIndex] = entry
+	for i := insertIndex; i < len(leaf.entries); i++ {
+		newLeaf.entries[i+1] = leaf.entries[i]
 	}
 
-	return newLeaf;
+	return newLeaf
 }
 
 func CopyLeafWithRemoval(leaf *Leaf, removeIndex int) *Leaf {
 	newLeaf := &Leaf{entries: make([]*LeafEntry, len(leaf.entries)-1)}
-	for i := 0; i<removeIndex ; i++  {
-		newLeaf.entries[i] = leaf.entries[i];
+	for i := 0; i < removeIndex; i++ {
+		newLeaf.entries[i] = leaf.entries[i]
 	}
-	for i := removeIndex+1; i<len(leaf.entries) ; i++  {
-		newLeaf.entries[i-1] = leaf.entries[i];
+	for i := removeIndex + 1; i < len(leaf.entries); i++ {
+		newLeaf.entries[i-1] = leaf.entries[i]
 	}
 
-	return newLeaf;
+	return newLeaf
 }
 
 func (leaf *Leaf) get(name string) *FileMetadata {
 	i := sort.Search(len(leaf.entries), func(i int) bool {
-			return leaf.entries[i].name >= name;
-		});
+		return leaf.entries[i].name >= name
+	})
 
 	if i < len(leaf.entries) && leaf.entries[i].name == name {
 		return leaf.entries[i].metadata
@@ -103,36 +103,36 @@ func (leaf *Leaf) get(name string) *FileMetadata {
 	return nil
 }
 
-func (leaf *Leaf) insert(entry * LeafEntry) * Leaf {
+func (leaf *Leaf) insert(entry *LeafEntry) *Leaf {
 	i := sort.Search(len(leaf.entries), func(i int) bool {
-			return leaf.entries[i].name >= entry.name;
-		});
+		return leaf.entries[i].name >= entry.name
+	})
 
 	// replace existing entry
-	var newLeaf *Leaf;
-	if(len(leaf.entries) > i && leaf.entries[i].name == entry.name) {
-		newLeaf = CopyLeafWithMutation(leaf, i, entry);
-//		stats.valuesReplaced ++;
+	var newLeaf *Leaf
+	if len(leaf.entries) > i && leaf.entries[i].name == entry.name {
+		newLeaf = CopyLeafWithMutation(leaf, i, entry)
+		//		stats.valuesReplaced ++;
 	} else {
 		// otherwise we have an insertion
-		newLeaf = CopyLeafWithInsertion(leaf, i, entry);
-//		stats.valuesInserted ++;
+		newLeaf = CopyLeafWithInsertion(leaf, i, entry)
+		//		stats.valuesInserted ++;
 	}
 
-	return newLeaf;
+	return newLeaf
 }
 
-func (leaf *Leaf) remove(name string) * Leaf {
+func (leaf *Leaf) remove(name string) *Leaf {
 	i := sort.Search(len(leaf.entries), func(i int) bool {
-			return leaf.entries[i].name >= name;
-		});
+		return leaf.entries[i].name >= name
+	})
 
-	if(leaf.entries[i].name == name) {
-		newLeaf := CopyLeafWithRemoval(leaf, i);
-		return newLeaf;
+	if leaf.entries[i].name == name {
+		newLeaf := CopyLeafWithRemoval(leaf, i)
+		return newLeaf
 	} else {
 		// otherwise, no entry with that name found, so do nothing
-		return nil;
+		return nil
 	}
 }
 
@@ -142,22 +142,22 @@ type LeafDirService struct {
 
 type LeafDir struct {
 	chunks ChunkService
-	key *Key
+	key    *Key
 }
 
 func NewLeafDirService(chunks ChunkService) *LeafDirService {
-	return &LeafDirService{chunks: chunks};
+	return &LeafDirService{chunks: chunks}
 }
 
 func (s *LeafDirService) GetDirectory(key *Key) Directory {
-	return &LeafDir{chunks: s.chunks, key: key};
+	return &LeafDir{chunks: s.chunks, key: key}
 }
 
 func UnpackLeafEntry(entry *LeafRecordEntry) *LeafEntry {
-	return &LeafEntry{name: entry.GetName(), metadata: entry.GetMetadata()};
+	return &LeafEntry{name: entry.GetName(), metadata: entry.GetMetadata()}
 }
 
-func UnpackLeaf(data []byte) * Leaf{
+func UnpackLeaf(data []byte) *Leaf {
 	dest := &LeafRecord{}
 	err := proto.Unmarshal(data, dest)
 	if err != nil {
@@ -165,16 +165,16 @@ func UnpackLeaf(data []byte) * Leaf{
 	}
 
 	// convert LeafRecord to Leaf
-	entries := make([]*LeafEntry, 0, len(dest.GetEntries()));
-	for _, entry := range(dest.GetEntries()) {
+	entries := make([]*LeafEntry, 0, len(dest.GetEntries()))
+	for _, entry := range dest.GetEntries() {
 		entries = append(entries, UnpackLeafEntry(entry))
 	}
 	return &Leaf{entries: entries}
 }
 
-func PackLeaf(leaf *Leaf) []byte{
+func PackLeaf(leaf *Leaf) []byte {
 	entries := make([]*LeafRecordEntry, 0, len(leaf.entries))
-	for _, entry := range(leaf.entries) {
+	for _, entry := range leaf.entries {
 		if entry.metadata == nil {
 			panic("entry.metadata")
 		}
@@ -205,7 +205,7 @@ func (d *LeafDir) writeLeaf(leaf *Leaf) *Key {
 	buffer := PackLeaf(leaf)
 	newLeafKey := computeContentKey(buffer)
 	d.chunks.Put(newLeafKey, NewMemResource(buffer))
-	return newLeafKey;
+	return newLeafKey
 }
 
 func computeContentKey(buffer []byte) *Key {
@@ -238,34 +238,31 @@ func (d *LeafDir) Remove(name string) *Key {
 }
 
 type LeafIterator struct {
-	leafIndex int;
-	leaf *Leaf;
-	reachedEnd bool;
+	leafIndex  int
+	leaf       *Leaf
+	reachedEnd bool
 }
 
-func (it *LeafIterator) HasNext() bool{
-	return !it.reachedEnd;
+func (it *LeafIterator) HasNext() bool {
+	return !it.reachedEnd
 }
 
 func (it *LeafIterator) Next() (string, *FileMetadata) {
-	next := it.leaf.entries[it.leafIndex];
+	next := it.leaf.entries[it.leafIndex]
 
-	it.leafIndex ++;
+	it.leafIndex++
 
 	if it.leafIndex >= len(it.leaf.entries) {
-		it.reachedEnd = true;
+		it.reachedEnd = true
 	}
 
-	return next.name, next.metadata;
+	return next.name, next.metadata
 }
-
 
 func (d *LeafDir) Iterate() Iterator {
 	leaf := d.readLeaf(d.key)
-	return &LeafIterator{leafIndex: 0, leaf: leaf, reachedEnd: len(leaf.entries) == 0};
+	return &LeafIterator{leafIndex: 0, leaf: leaf, reachedEnd: len(leaf.entries) == 0}
 }
-
-
 
 /*
 func GetLeaf(key *Key) *Leaf {
