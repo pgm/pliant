@@ -4,6 +4,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"errors"
 	"fmt"
+	"sort"
+	"sync"
 )
 
 var NO_SUCH_PATH = errors.New("No such path")
@@ -16,10 +18,12 @@ type Atomic interface {
 	GetMetadata(path *Path) (*FileMetadata, error);
 
 	Put(destination *Path, resource Resource) (*Key, error);
-//	Get(destination *Path) *Resource;
+	GetResource(key *Key) Resource;
 
 	Link(key *Key, path *Path, isDir bool) error;
 	Unlink(path *Path) error;
+
+	CreateResourceForLocalFile(localFile string) (Resource, error)
 
 	//TODO
 	//Pull(tag string, lease *Lease) *Key;
@@ -30,6 +34,35 @@ type Atomic interface {
 // A wrapper around Atomic which uses simple types for its parameters.
 type AtomicClient struct {
 	atomic Atomic
+}
+
+type ListFilesRecord struct {
+	Name string
+	IsDir bool
+	Length int64
+}
+
+func (ac *AtomicClient) ListFiles(path string, result *[]ListFilesRecord) error {
+	parsedPath := NewPath(path);
+	it, err := ac.atomic.GetDirectoryIterator(parsedPath)
+	if err != nil {
+		return err
+	}
+
+	records := make([]ListFilesRecord, 0, 100)
+
+	for it.HasNext() {
+		name, metadata := it.Next()
+		records = append(records, ListFilesRecord{Name: name, IsDir: metadata.GetIsDir(), Length: metadata.GetLength()})
+	}
+
+	*result = records
+	return nil
+}
+
+func (ac *AtomicClient) MakeDir(path string, result *string) error {
+	parsedPath := NewPath(path);
+	return ac.atomic.Link(EMPTY_DIR_KEY, parsedPath, true);
 }
 
 func (ac *AtomicClient) GetKey(path string, key *string) error {
@@ -43,20 +76,33 @@ func (ac *AtomicClient) GetKey(path string, key *string) error {
 }
 
 func (ac *AtomicClient) GetLocalPath(path string, localPath *string) error {
-	panic("unimp");
+	parsedPath := NewPath(path);
+	metadata, err := ac.atomic.GetMetadata(parsedPath)
+	if err != nil {
+		return err
+	}
+	resource := ac.atomic.GetResource(KeyFromBytes(metadata.GetKey()))
+	if resource == nil {
+		return errors.New("Not found")
+	}
+	*localPath = (resource.(*FilesystemResource)).filename
+	return nil
 }
 
 type PutLocalPathArgs struct {
-	localPath string;
-	destPath string
+	LocalPath string;
+	DestPath string
 }
 
 func (ac *AtomicClient) PutLocalPath(args *PutLocalPathArgs, result *string) error {
-	panic("unimp")
-//	parsedPath := NewPath(destPath);
-//	cachedPath = CacheFile(localPath)
-//	resource := NewFileResource(cachedPath);
-//	ac.atomic.Put()
+	parsedPath := NewPath(args.DestPath);
+	resource, err := ac.atomic.CreateResourceForLocalFile(args.LocalPath)
+	if (err != nil) {
+		return err;
+	}
+	fmt.Printf("Created resource: %s\n", resource)
+	_, err = ac.atomic.Put(parsedPath, resource)
+	return err;
 }
 
 type LinkArgs struct {
@@ -81,14 +127,26 @@ type AtomicState struct {
 	// TODO: Add lock to protect access to roots
 	dirService DirectoryService;
 	roots map[string] *FileMetadata;
+	cache *filesystemCacheDB;
+	lock sync.Mutex
 }
 
-func NewAtomicState(dirService DirectoryService) *AtomicState {
-	return &AtomicState{dirService: dirService, roots: make(map[string]*FileMetadata)}
+func NewAtomicState(dirService DirectoryService, cache *filesystemCacheDB) *AtomicState {
+	return &AtomicState{dirService: dirService, roots: make(map[string]*FileMetadata), cache: cache}
 }
 
-func (self *AtomicState) getDirsFromPath(path *Path) ([]Directory, error) {
-	// otherwise we need to decend in until we find the parent
+func (self *AtomicState) CreateResourceForLocalFile(localFile string) (Resource, error) {
+	resource, err := NewFileResource(localFile)
+	if err != nil {
+		return nil, err
+	}
+	fsResource, err := self.cache.MakeFSResource(resource)
+	return fsResource, err
+}
+
+
+func (self *AtomicState) unsafeGetDirsFromPath(path *Path) ([]Directory, error) {
+	// otherwise we need to descend in until we find the parent
 	parentDirs := make([]Directory,0,len(path.path));
 	dirMetadata, ok := self.roots[path.path[0]];
 	if ! ok {
@@ -117,18 +175,43 @@ func (self *AtomicState) getDirsFromPath(path *Path) ([]Directory, error) {
 	return parentDirs, nil;
 }
 
-func (self *AtomicState) getDirFromPath(path *Path) (Directory, error) {
-	dirs, err := self.getDirsFromPath(path)
+func (self *AtomicState) unsafeGetDirFromPath(path *Path) (Directory, error) {
+	dirs, err := self.unsafeGetDirsFromPath(path)
 	if err != nil {
 		return nil, err
 	}
 	return dirs[len(dirs)-1], nil;
 }
 
+//type MemDir struct {
+//	names []string
+//	metadatas []*FileMetadata
+//}
+
 type MemDirIterator struct {
-	index int
+//	MemDir
 	names []string
 	metadatas []*FileMetadata
+	index int
+}
+
+func (m *MemDirIterator) Len() int {
+	return len(m.names)
+}
+
+func (m *MemDirIterator) Less(i, j int) bool {
+	return m.names[i] < m.names[j]
+}
+
+func (m *MemDirIterator) Swap(i, j int) {
+	tname := m.names[i]
+	tmetadatas := m.metadatas[i]
+
+	m.names[i] = m.names[j]
+	m.metadatas[i] = m.metadatas[j]
+
+	m.names[j] = tname
+	m.metadatas[j] = tmetadatas
 }
 
 func (m *MemDirIterator) HasNext() bool {
@@ -142,11 +225,17 @@ func (m *MemDirIterator) Next() (string, *FileMetadata) {
 }
 
 func NewMemDirIterator(names []string, metadatas []*FileMetadata) Iterator {
-	return &MemDirIterator{index: 0, names: names, metadatas: metadatas}
+	d := &MemDirIterator{index: 0, names: names, metadatas: metadatas}
+	sort.Sort(d)
+	return d
 }
 
 func (self *AtomicState) GetDirectoryIterator(path *Path) (Iterator, error) {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
 	if len(path.path) == 0 {
+
 		// make a snapshot of the directory and return an iterator over it
 		names := make([]string, len(self.roots))
 		metadatas := make([]*FileMetadata, len(self.roots))
@@ -156,10 +245,12 @@ func (self *AtomicState) GetDirectoryIterator(path *Path) (Iterator, error) {
 			metadatas[i] = v
 			i+=1
 		}
-		return NewMemDirIterator(names, metadatas), nil
+
+		d := NewMemDirIterator(names, metadatas)
+		return d, nil
 	}
 
-	finalDir, err := self.getDirFromPath(path);
+	finalDir, err := self.unsafeGetDirFromPath(path);
 	if err != nil {
 		return nil, err
 	}
@@ -167,34 +258,67 @@ func (self *AtomicState) GetDirectoryIterator(path *Path) (Iterator, error) {
 }
 
 func (self *AtomicState) GetMetadata(path *Path) (*FileMetadata, error) {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
 	parentPath, filename := path.Split();
 
-	parentDir, error := self.getDirFromPath(parentPath);
-	if error != nil {
-		return nil, error;
-	}
+	if parentPath.IsRoot() {
 
-	return parentDir.Get(filename), nil;
+		meta, ok := self.roots[path.path[0]]
+		if !ok {
+			return nil, errors.New("No such path")
+		}
+		return meta, nil
+		//return &FileMetadata{Key: key.AsBytes(), IsDir: proto.Bool(true)}, nil
+	} else {
+		parentDir, error := self.unsafeGetDirFromPath(parentPath);
+		if error != nil {
+			return nil, error;
+		}
+
+		return parentDir.Get(filename), nil;
+	}
 }
+
+func (self *AtomicState) GetResource(key *Key) Resource {
+	entry := self.cache.Get(key)
+	if entry == nil {
+		return nil
+	}
+	return entry.resource
+}
+
 
 func (self *AtomicState) Put(destination *Path, resource Resource) (*Key, error) {
 	buffer := resource.AsBytes()
-	key := computeContentKey(buffer)
-	parentPath, filename := destination.Split();
+	key := computeContentKey(buffer);
 
-	parentDir, error := self.getDirFromPath(parentPath);
-	if error != nil {
-		return nil, error;
+	self.cache.Put(key, &cacheEntry{source: LOCAL, resource: resource});
+//
+//	parentPath, filename := destination.Split();
+//
+//	parentDir, error := self.getDirFromPath(parentPath);
+//	if error != nil {
+//		return nil, error;
+//	}
+//
+//	metadata := &FileMetadata{Length: proto.Int64(int64(len(buffer))),
+//		Key: key[:],
+//		IsDir: proto.Bool(false),
+//		CreationTime: proto.Int64(1)}
+//
+//	return parentDir.Put(filename, metadata), nil;
+
+	err := self.Link(key, destination, false);
+	if (err != nil) {
+		return nil, err
 	}
 
-	metadata := &FileMetadata{Length: proto.Int64(int64(len(buffer))),
-		Key: key[:],
-		IsDir: proto.Bool(false),
-		CreationTime: proto.Int64(1)}
-	return parentDir.Put(filename, metadata), nil;
+	return key, nil
 }
 
-func (self *AtomicState) Link(key *Key, path *Path, isDir bool) error {
+func (self *AtomicState) unsafeLink(key *Key, path *Path, isDir bool) error {
 	// TODO: check for len(path) == 0 (error)
 	var newParentKey *Key;
 	if len(path.path) == 0 {
@@ -204,7 +328,7 @@ func (self *AtomicState) Link(key *Key, path *Path, isDir bool) error {
 	} else {
 		parentPath, filename := path.Split();
 
-		parentDirs, err := self.getDirsFromPath(parentPath);
+		parentDirs, err := self.unsafeGetDirsFromPath(parentPath);
 		if err != nil {
 			return err;
 		}
@@ -227,18 +351,28 @@ func (self *AtomicState) Link(key *Key, path *Path, isDir bool) error {
 	return nil
 }
 
+func (self *AtomicState) Link(key *Key, path *Path, isDir bool) error {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+	return self.unsafeLink(key, path, isDir)
+}
+
 func (self *AtomicState) Unlink(path *Path) error {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
 	if len(path.path) == 1 {
 		delete(self.roots, path.path[0])
 	} else {
 		parentPath, filename := path.Split();
 
-		parentDir, err := self.getDirFromPath(parentPath);
+		parentDir, err := self.unsafeGetDirFromPath(parentPath);
 		if err != nil {
 			return err
 		}
 
-		parentDir.Remove(filename);
+		newParentDirKey := parentDir.Remove(filename);
+		return self.unsafeLink(newParentDirKey, parentPath, true);
 	}
 
 	return nil;

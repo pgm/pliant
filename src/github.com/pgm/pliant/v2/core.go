@@ -12,10 +12,14 @@ type Key [32] byte;
 var EMPTY_DIR_KEY_ Key = ([32]byte{1});
 var EMPTY_DIR_KEY *Key = &EMPTY_DIR_KEY_;
 
-func (k *Key) String() string {
+//func (k Key) String() string {
+//	return (&k).String()
+//}
+
+func (k Key) String() string {
 	b := bytes.NewBuffer(make([]byte,0,100))
 	e := base64.NewEncoder(base64.StdEncoding, b)
-	e.Write((*k)[:])
+	e.Write((k)[:])
 	s := string(b.Bytes())
 	if len(s) != 40 {
 		panic("invalid length")

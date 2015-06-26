@@ -4,6 +4,8 @@ import (
 	"sync"
 	"log"
 	"fmt"
+	"io"
+	"bytes"
 )
 
 type MemChunkService struct {
@@ -56,6 +58,10 @@ func NewMemResource(data []byte) Resource {
 
 func (r *MemResource ) AsBytes() []byte {
 	return r.data;
+}
+
+func (r *MemResource ) GetReader() io.Reader {
+	return bytes.NewBuffer(r.data);
 }
 
 //func (self *MemChunkService) Get(key *Key) Resource {

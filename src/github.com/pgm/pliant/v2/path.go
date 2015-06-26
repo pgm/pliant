@@ -21,3 +21,7 @@ func NewPath(path string) *Path {
 	components := strings.Split(path, "/")
 	return &Path{path: components}
 }
+
+func (p *Path) IsRoot() bool {
+	return len(p.path) == 0
+}

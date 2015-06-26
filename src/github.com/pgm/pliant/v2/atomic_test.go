@@ -21,36 +21,68 @@ func fetchNamesFromIter(it Iterator) []string {
 	return names
 }
 
+func (* AtomicSuite) TestChunkCache(c *C) {
+	cache,_ := NewFilesystemCacheDB("cache")
+	chunks := NewChunkCache(NewMemChunkService(), cache)
+
+	aRes := NewMemResource([]byte("A"))
+	bRes := NewMemResource([]byte("B"))
+
+	chunks.Put(&Key{100}, aRes)
+	chunks.Put(&Key{101}, bRes)
+
+	fetched := chunks.Get(&Key{100})
+	c.Assert(fetched.AsBytes(), DeepEquals, []byte("A"))
+	fetched = chunks.Get(&Key{101})
+	c.Assert(fetched.AsBytes(), DeepEquals, []byte("B"))
+}
+
 func (s *AtomicSuite) TestAtomicDirOps(c *C) {
-	chunks := NewMemChunkService()
-	ds := NewLeafDirService(chunks)
-	as := NewAtomicState(ds)
+	cache,_ := NewFilesystemCacheDB("cache")
+	ds := NewLeafDirService(NewChunkCache(NewMemChunkService(), cache))
+	as := NewAtomicState(ds, cache)
 	ac := &AtomicClient{atomic: as}
 
-	ac.Link(EMPTY_DIR_KEY.String(), "a", true)
+	defer func() {
+		r := recover()
+		if r != nil {
+			fmt.Printf("Caught r %s", r);
+			cache.Dump()
+		}
+		panic(r)
+	}()
+
+	var result string;
+	ac.Link(&LinkArgs{Key: EMPTY_DIR_KEY.String(), Path: "a", IsDir: true}, &result)
 	it0, _ := as.GetDirectoryIterator(NewPath(""))
 
 	e1 := [...]string{"a"};
 	c.Assert(fetchNamesFromIter(it0), DeepEquals, e1[:])
 
-	ac.Link(EMPTY_DIR_KEY.String(), "b", true)
+	ac.Link(&LinkArgs{Key: EMPTY_DIR_KEY.String(), Path: "c", IsDir: true}, &result)
 	it1, _ := as.GetDirectoryIterator(NewPath(""))
 
-	e2 := [...]string{"a", "b"};
+	e2 := [...]string{"a", "c"};
 	c.Assert(fetchNamesFromIter(it1), DeepEquals, e2[:])
 
-	ac.Link(EMPTY_DIR_KEY.String(), "a/b", true)
-	ac.Link(EMPTY_DIR_KEY.String(), "a/b/c", true)
+	ac.Link(&LinkArgs{Key: EMPTY_DIR_KEY.String(), Path: "b", IsDir: true}, &result)
+	it4, _ := as.GetDirectoryIterator(NewPath(""))
+
+	e4 := [...]string{"a", "b", "c"};
+	c.Assert(fetchNamesFromIter(it4), DeepEquals, e4[:])
+
+	ac.Link(&LinkArgs{Key: EMPTY_DIR_KEY.String(), Path: "a/c", IsDir: true}, &result)
+	ac.Link(&LinkArgs{Key: EMPTY_DIR_KEY.String(), Path: "a/c/d", IsDir: true}, &result)
 	it2, _ := as.GetDirectoryIterator(NewPath("a"))
 
-	e3 := [...]string{"b"};
+	e3 := [...]string{"c"};
 	c.Assert(fetchNamesFromIter(it2), DeepEquals, e3[:])
 }
 
 func (s *AtomicSuite) TestAtomicFileOps(c *C) {
-	chunks := NewMemChunkService()
-	ds := NewLeafDirService(chunks)
-	as := NewAtomicState(ds)
+	cache,_ := NewFilesystemCacheDB("cache")
+	ds := NewLeafDirService(NewChunkCache(NewMemChunkService(), cache))
+	as := NewAtomicState(ds, cache)
 	ac := &AtomicClient{atomic: as}
 
 	tempFile := "tmpfile"
@@ -58,11 +90,17 @@ func (s *AtomicSuite) TestAtomicFileOps(c *C) {
 	wfile.WriteString("test")
 	wfile.Close()
 
-	ac.Link(EMPTY_DIR_KEY.String(), "a", true)
-	key := ac.PutLocalPath(tempFile)
-	ac.Link(key, "a/b", false)
-	finalFile := ac.GetLocalPath("a/b")
+	var result string;
+	ac.Link(&LinkArgs{Key: EMPTY_DIR_KEY.String(), Path: "a", IsDir: true}, &result)
 
+	err := ac.PutLocalPath(&PutLocalPathArgs{LocalPath: tempFile, DestPath: "a/b"}, &result)
+	c.Assert(err, Equals, nil)
+
+	var finalFile string
+	err = ac.GetLocalPath("a/b", &finalFile)
+	c.Assert(err, Equals, nil)
+
+	fmt.Printf("Got local file path: %s\n", finalFile)
 	file, _ := os.Open(finalFile)
 	b := make([]byte, 4)
 	n, _ := file.Read(b)
