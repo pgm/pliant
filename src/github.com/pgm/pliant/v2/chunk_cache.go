@@ -44,6 +44,12 @@ func NewChunkCache(remote ChunkService, local cacheDB) *ChunkCache {
 	return c
 }
 
+func (c *ChunkCache) PushToRemote(key *Key) error {
+	resource := c.Get(key)
+	c.Put(key, resource)
+	return nil
+}
+
 func (c *ChunkCache) Put(key *Key, resource Resource) {
 	c.local.Put(key, &cacheEntry{source: LOCAL, resource: resource})
 }

@@ -25,14 +25,42 @@ type Atomic interface {
 
 	CreateResourceForLocalFile(localFile string) (Resource, error)
 
-	//TODO
-	//Pull(tag string, lease *Lease) *Key;
-	//Push(key *Key, new_tag string, lease *Lease);
+	Pull(tag string, lease *Lease) *Key;
+	Push(key *Key, new_tag string, lease *Lease) error
 }
 
 // A wrapper around Atomic which uses simple types for its parameters.
 type AtomicClient struct {
 	atomic Atomic
+}
+
+type PushArgs struct {
+	Source string
+	Tag string
+}
+
+func (ac *AtomicClient) Push(args *PushArgs, result *string) error {
+	parsedPath := NewPath(args.Source)
+	metadata, err := ac.atomic.GetMetadata(parsedPath)
+	if err != nil {
+		return err
+	}
+
+	key := KeyFromBytes(metadata.GetKey())
+
+	return ac.atomic.Push(key, args.Tag, &Lease{});
+}
+
+type PullArgs struct {
+	Tag string
+	Destination string
+}
+
+func (ac *AtomicClient) Pull(args *PullArgs, result *string) error {
+	key := ac.atomic.Pull(args.Tag, &Lease{});
+
+	parsedPath := NewPath(args.Destination)
+	return ac.atomic.Link(key, parsedPath, true)
 }
 
 type ListFilesRecord struct {
@@ -122,15 +150,68 @@ func (ac *AtomicClient) Unlink(path string, result *string) error {
 }
 
 type AtomicState struct {
-	// TODO: Add lock to protect access to roots
-	dirService DirectoryService
+	lock       sync.Mutex  // protects access to roots
+
 	roots      map[string]*FileMetadata
+
+	dirService DirectoryService
 	cache      *filesystemCacheDB
-	lock       sync.Mutex
+	chunks     *ChunkCache
+	tags		TagService
 }
 
-func NewAtomicState(dirService DirectoryService, cache *filesystemCacheDB) *AtomicState {
-	return &AtomicState{dirService: dirService, roots: make(map[string]*FileMetadata), cache: cache}
+func NewAtomicState(dirService DirectoryService, chunks *ChunkCache, cache *filesystemCacheDB, tags TagService) *AtomicState {
+	return &AtomicState{dirService: dirService, roots: make(map[string]*FileMetadata), cache: cache, chunks: chunks, tags: tags}
+}
+
+type typedKey struct {
+	key *Key
+	isDir bool
+}
+
+func (self *AtomicState) Pull(tag string, lease *Lease) *Key {
+	key := self.tags.Get(tag)
+
+	return key
+}
+
+func (self *AtomicState) Push(key *Key, tag string, lease *Lease) error {
+	seen := make(map[Key] *Key)
+	pending := make([] typedKey , 0, 1000)
+
+	for len(pending) > 0 {
+		next := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+
+		_, wasSeen := seen[*next.key]
+		if wasSeen {
+			continue
+		}
+
+		entry := self.cache.Get(next.key)
+		if entry.source == REMOTE {
+			continue
+		}
+
+		// copy chunk to remote
+		self.chunks.PushToRemote(next.key)
+
+		if !next.isDir {
+			continue
+		}
+
+		// now record all the keys that this references
+		dir := self.dirService.GetDirectory(next.key)
+		it := dir.Iterate()
+		for it.HasNext() {
+			_, meta := it.Next()
+			pending = append(pending, typedKey{KeyFromBytes(meta.GetKey()), meta.GetIsDir()})
+		}
+	}
+
+	self.tags.Put(tag, key)
+
+	return nil
 }
 
 func (self *AtomicState) CreateResourceForLocalFile(localFile string) (Resource, error) {

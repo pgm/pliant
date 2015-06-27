@@ -16,9 +16,14 @@ func (p *Path) Split() (*Path, string) {
 }
 
 func NewPath(path string) *Path {
-	if path == "" {
+	if strings.HasPrefix(path, "/") {
+		path = path[1:]
+	}
+
+	if path == "" || path == "." {
 		return &Path{path: make([]string, 0)}
 	}
+	
 	// TODO: add validation of components of path and canonicalize path
 	components := strings.Split(path, "/")
 	return &Path{path: components}

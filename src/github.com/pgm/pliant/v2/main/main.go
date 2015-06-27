@@ -58,8 +58,10 @@ func main() {
 				}
 
 				cache,_ := v2.NewFilesystemCacheDB("cache")
-				ds := v2.NewLeafDirService(v2.NewChunkCache(v2.NewMemChunkService(), cache))
-				as := v2.NewAtomicState(ds, cache)
+				chunks := v2.NewChunkCache(v2.NewMemChunkService(), cache)
+				ds := v2.NewLeafDirService(chunks)
+				tags := v2.NewMemTagService()
+				as := v2.NewAtomicState(ds, chunks, cache, tags)
 				panicIfError(v2.StartServer(SERVER_BINDING, as))
 			},
 		},
@@ -127,6 +129,28 @@ func main() {
 				for _, rec := range(result) {
 					fmt.Printf("%s\n", rec.Name)
 				}
+			},
+		},
+		{
+			Name: "push",
+			Usage: "push source tag ",
+			Action: func(c *cli.Context) {
+				ac := connectToServer()
+
+				var result string
+
+				panicIfError(ac.Call("AtomicClient.Push", &v2.PushArgs{Source: c.Args().Get(0), Tag: c.Args().Get(1)}, &result));
+			},
+		},
+		{
+			Name: "pull",
+			Usage: "pull tag destination",
+			Action: func(c *cli.Context) {
+				ac := connectToServer()
+
+				var result string
+
+				panicIfError(ac.Call("AtomicClient.Pull", &v2.PullArgs{Tag: c.Args().Get(0), Destination: c.Args().Get(1)}, &result))
 			},
 		},
 	}

@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+	"log"
 )
 
 func StartServer(bindAddr string, atomic Atomic) error {
@@ -17,6 +18,7 @@ func StartServer(bindAddr string, atomic Atomic) error {
 	}
 	defer os.Remove(bindAddr)
 
+	log.Printf("Ready to accept requests via %s\n", bindAddr)
 	server.Accept(l)
 	return nil
 }
