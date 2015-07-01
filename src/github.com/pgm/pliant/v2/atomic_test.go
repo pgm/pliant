@@ -40,8 +40,10 @@ func (*AtomicSuite) TestChunkCache(c *C) {
 
 func (s *AtomicSuite) TestAtomicDirOps(c *C) {
 	cache, _ := NewFilesystemCacheDB("cache")
-	ds := NewLeafDirService(NewChunkCache(NewMemChunkService(), cache))
-	as := NewAtomicState(ds, cache)
+	chunks := NewChunkCache(NewMemChunkService(), cache)
+	ds := NewLeafDirService(chunks)
+	tags := NewMemTagService()
+	as := NewAtomicState(ds, chunks, cache, tags)
 	ac := &AtomicClient{atomic: as}
 
 	defer func() {
@@ -82,8 +84,10 @@ func (s *AtomicSuite) TestAtomicDirOps(c *C) {
 
 func (s *AtomicSuite) TestAtomicFileOps(c *C) {
 	cache, _ := NewFilesystemCacheDB("cache")
-	ds := NewLeafDirService(NewChunkCache(NewMemChunkService(), cache))
-	as := NewAtomicState(ds, cache)
+	chunks := NewChunkCache(NewMemChunkService(), cache)
+	ds := NewLeafDirService(chunks)
+	tags := NewMemTagService()
+	as := NewAtomicState(ds, chunks, cache, tags)
 	ac := &AtomicClient{atomic: as}
 
 	tempFile := "tmpfile"
@@ -99,6 +103,51 @@ func (s *AtomicSuite) TestAtomicFileOps(c *C) {
 
 	var finalFile string
 	err = ac.GetLocalPath("a/b", &finalFile)
+	c.Assert(err, Equals, nil)
+
+	fmt.Printf("Got local file path: %s\n", finalFile)
+	file, _ := os.Open(finalFile)
+	b := make([]byte, 4)
+	n, _ := file.Read(b)
+	c.Assert(n, Equals, 4)
+	c.Assert("test", Equals, string(b))
+}
+
+
+func (s *AtomicSuite) TestPush(c *C) {
+	remoteChunks := NewMemChunkService()
+	tags := NewMemTagService()
+
+	cache1, _ := NewFilesystemCacheDB("cache")
+	chunks1 := NewChunkCache(remoteChunks, cache1)
+	ds1 := NewLeafDirService(chunks1)
+	as1 := NewAtomicState(ds1, chunks1, cache1, tags)
+	ac1 := &AtomicClient{atomic: as1}
+
+	cache2, _ := NewFilesystemCacheDB("cache")
+	chunks2 := NewChunkCache(remoteChunks, cache2)
+	ds2 := NewLeafDirService(chunks2)
+	as2 := NewAtomicState(ds2, chunks2, cache2, tags)
+	ac2 := &AtomicClient{atomic: as2}
+
+	tempFile := "tmpfile"
+	wfile, _ := os.Create(tempFile)
+	wfile.WriteString("test")
+	wfile.Close()
+
+	var result string
+	ac1.Link(&LinkArgs{Key: EMPTY_DIR_KEY.String(), Path: "a", IsDir: true}, &result)
+
+	err := ac1.PutLocalPath(&PutLocalPathArgs{LocalPath: tempFile, DestPath: "a/b"}, &result)
+	c.Assert(err, Equals, nil)
+
+	ac1.Push(&PushArgs{Source: "a", Tag: "tag"}, &result)
+	remoteChunks.PrintDebug()
+	ac2.Pull(&PullArgs{Tag: "tag", Destination: "z"}, &result)
+	as2.DumpDebug()
+
+	var finalFile string
+	err = ac2.GetLocalPath("z/b", &finalFile)
 	c.Assert(err, Equals, nil)
 
 	fmt.Printf("Got local file path: %s\n", finalFile)

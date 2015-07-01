@@ -38,6 +38,10 @@ type ChunkCache struct {
 	cond *sync.Cond
 }
 
+func (c *ChunkCache) Dump() {
+
+}
+
 func NewChunkCache(remote ChunkService, local cacheDB) *ChunkCache {
 	c := &ChunkCache{remote: remote, local: local, inProgress: make(map[Key]*Key)}
 	c.cond = sync.NewCond(&c.lock)
@@ -45,8 +49,13 @@ func NewChunkCache(remote ChunkService, local cacheDB) *ChunkCache {
 }
 
 func (c *ChunkCache) PushToRemote(key *Key) error {
+	fmt.Printf("**** PushToRemote %s\n", key.String())
 	resource := c.Get(key)
-	c.Put(key, resource)
+	c.remote.Put(key, resource)
+//	r := c.remote.Get(KeyFromBytes(key.AsBytes()))
+//	if r == nil {
+//		panic("failed put")
+//	}
 	return nil
 }
 

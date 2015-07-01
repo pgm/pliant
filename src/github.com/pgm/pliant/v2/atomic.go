@@ -108,9 +108,10 @@ func (ac *AtomicClient) GetLocalPath(path string, localPath *string) error {
 	if err != nil {
 		return err
 	}
-	resource := ac.atomic.GetResource(KeyFromBytes(metadata.GetKey()))
+	key := KeyFromBytes(metadata.GetKey())
+	resource := ac.atomic.GetResource(key)
 	if resource == nil {
-		return errors.New("Not found")
+		return errors.New(fmt.Sprintf("Resource missing: %s", key.String()))
 	}
 	*localPath = (resource.(*FilesystemResource)).filename
 	return nil
@@ -175,9 +176,22 @@ func (self *AtomicState) Pull(tag string, lease *Lease) *Key {
 	return key
 }
 
+func (self *AtomicState) DumpDebug() {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
+	fmt.Printf("Atomic state has %d entries\n", len(self.roots))
+	for k, v := range(self.roots) {
+		fmt.Printf("  %s -> %s\n", k, KeyFromBytes(v.GetKey()).String() )
+	}
+}
+
 func (self *AtomicState) Push(key *Key, tag string, lease *Lease) error {
 	seen := make(map[Key] *Key)
 	pending := make([] typedKey , 0, 1000)
+
+	//
+	pending = append(pending, typedKey{key, true})
 
 	for len(pending) > 0 {
 		next := pending[len(pending)-1]
@@ -360,11 +374,12 @@ func (self *AtomicState) GetMetadata(path *Path) (*FileMetadata, error) {
 }
 
 func (self *AtomicState) GetResource(key *Key) Resource {
-	entry := self.cache.Get(key)
+	entry := self.chunks.Get(key)
 	if entry == nil {
+		fmt.Printf("GetRes Could not find %s\n", key.String())
 		return nil
 	}
-	return entry.resource
+	return entry
 }
 
 func (self *AtomicState) Put(destination *Path, resource Resource) (*Key, error) {

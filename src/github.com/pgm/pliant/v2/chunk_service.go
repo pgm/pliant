@@ -40,9 +40,9 @@ func (self *MemChunkService) PrintDebug() {
 	defer self.lock.Unlock()
 
 	log.Printf("%d chunks in %p\n", len(self.chunks), self)
-	//	for id, _ := range(self.table) {
-	//		log.Printf("chunk %s\n", string(id))
-	//	}
+	for id, _ := range(self.chunks) {
+		log.Printf("chunk %s\n", id.String())
+	}
 }
 
 //Get(key *Key) Resource;
