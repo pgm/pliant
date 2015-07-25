@@ -118,13 +118,13 @@ func (s *AtomicSuite) TestPush(c *C) {
 	remoteChunks := NewMemChunkService()
 	tags := NewMemTagService()
 
-	cache1, _ := NewFilesystemCacheDB("cache")
+	cache1, _ := NewFilesystemCacheDB("cache1")
 	chunks1 := NewChunkCache(remoteChunks, cache1)
 	ds1 := NewLeafDirService(chunks1)
 	as1 := NewAtomicState(ds1, chunks1, cache1, tags)
 	ac1 := &AtomicClient{atomic: as1}
 
-	cache2, _ := NewFilesystemCacheDB("cache")
+	cache2, _ := NewFilesystemCacheDB("cache2")
 	chunks2 := NewChunkCache(remoteChunks, cache2)
 	ds2 := NewLeafDirService(chunks2)
 	as2 := NewAtomicState(ds2, chunks2, cache2, tags)
