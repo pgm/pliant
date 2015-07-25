@@ -4,6 +4,7 @@ import (
 	"os"
 	"github.com/codegangsta/cli"
 	"github.com/pgm/pliant/v2"
+	"github.com/pgm/pliant/v2/s3"
 	"net/rpc"
 	"fmt"
 )
@@ -57,10 +58,14 @@ func main() {
 					os.Remove(SERVER_BINDING)
 				}
 
+//				chunkService := v2.NewMemChunkService()
+//				tags := v2.NewMemTagService()
+
 				cache,_ := v2.NewFilesystemCacheDB("cache")
-				chunks := v2.NewChunkCache(v2.NewMemChunkService(), cache)
+				tags := s3.NewS3TagService("s3.amazonaws.com", "pliantdemo", "labels")
+				chunkService := s3.NewS3ChunkService("s3.amazonaws.com", "pliantdemo", "chunks", cache.AllocateTempFilename)
+				chunks := v2.NewChunkCache(chunkService, cache)
 				ds := v2.NewLeafDirService(chunks)
-				tags := v2.NewMemTagService()
 				as := v2.NewAtomicState(ds, chunks, cache, tags)
 				panicIfError(v2.StartServer(SERVER_BINDING, as))
 			},

@@ -124,6 +124,15 @@ type filesystemCacheDB struct {
 	entries map[Key]*cacheEntry
 }
 
+func (f *filesystemCacheDB) AllocateTempFilename() string {
+	fp, err := ioutil.TempFile(f.root, "temp")
+	if err != nil {
+		panic(err.Error())
+	}
+	fp.Close()
+	return fp.Name()
+}
+
 func NewFilesystemCacheDB(root string) (*filesystemCacheDB, error) {
 	//	db, err := bolt.Open("my.db", 0600, nil)
 	//	if err != nil {

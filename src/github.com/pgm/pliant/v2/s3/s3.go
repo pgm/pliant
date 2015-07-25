@@ -28,6 +28,37 @@ type S3TagService struct {
 	S3Parameters
 }
 
+func NewS3TagService(endpoint string, bucket string, prefix string) *S3TagService {
+	keys, err := s3gof3r.EnvKeys()
+	if err != nil {
+		panic(err.Error())
+	}
+	p := &S3TagService{}
+	p.EndPoint = endpoint
+	p.Bucket = bucket
+	p.Keys = keys
+	p.Prefix = prefix
+	return p
+}
+
+func NewS3ChunkService(endpoint string, bucket string, prefix string, getDestFn AllocTempDestFn ) *S3ChunkService {
+	keys, err := s3gof3r.EnvKeys()
+	if err != nil {
+		panic(err.Error())
+	}
+
+
+	p := &S3ChunkService{}
+	p.EndPoint = endpoint
+	p.Bucket = bucket
+	p.Keys = keys
+	p.GetDestFn = getDestFn
+	p.Prefix = prefix
+
+	return p
+}
+
+
 func (c *S3ChunkService) Get(key *v2.Key) v2.Resource {
 	conf := new(s3gof3r.Config)
 	*conf = *s3gof3r.DefaultConfig

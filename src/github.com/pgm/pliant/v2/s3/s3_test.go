@@ -4,7 +4,6 @@ import (
 	"fmt"
 	. "gopkg.in/check.v1"
 	"testing"
-	"github.com/rlmcpherson/s3gof3r"
 	"github.com/pgm/pliant/v2"
 )
 
@@ -15,17 +14,10 @@ var _ = fmt.Sprintf("hello!")
 
 func Test(t *testing.T) { TestingT(t) }
 
-func (s *S3Suite) TestSimpleS3LabelOps(c *C) {
-	keys, err := s3gof3r.EnvKeys()
-	if err != nil {
-		panic(err.Error())
-	}
 
-	p := &S3TagService{}
-	p.EndPoint = "s3.amazonaws.com"
-	p.Bucket = "pliantdemo"
-	p.Keys = keys
-	p.Prefix = "test/labels"
+func (s *S3Suite) TestSimpleS3LabelOps(c *C) {
+
+	p := NewS3TagService("s3.amazonaws.com", "pliantdemo", "test/labels")
 
 	var testkey v2.Key = ([32]byte{1,2,3,4})
 	key := &testkey
@@ -37,21 +29,11 @@ func (s *S3Suite) TestSimpleS3LabelOps(c *C) {
 }
 
 func (s *S3Suite) TestSimpleS3ChunkOps(c *C) {
-	keys, err := s3gof3r.EnvKeys()
-	if err != nil {
-		panic(err.Error())
-	}
-
 	getDestFn := func() string {
 		return "tempoutput"
 	}
 
-	p := &S3ChunkService{}
-    p.EndPoint = "s3.amazonaws.com"
-	p.Bucket = "pliantdemo"
-	p.Keys = keys
-    p.GetDestFn = getDestFn
-	p.Prefix = "test/chunks"
+	p := NewS3ChunkService("s3.amazonaws.com", "pliantdemo", "test/labels", getDestFn)
 
 	var testkey v2.Key = ([32]byte{1,2,3,4})
 

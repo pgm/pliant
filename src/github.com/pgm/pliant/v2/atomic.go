@@ -190,7 +190,9 @@ func (self *AtomicState) Push(key *Key, tag string, lease *Lease) error {
 	seen := make(map[Key] *Key)
 	pending := make([] typedKey , 0, 1000)
 
-	//
+	// add empty dir as seen so we always skip it
+	seen[*EMPTY_DIR_KEY] = EMPTY_DIR_KEY
+
 	pending = append(pending, typedKey{key, true})
 
 	for len(pending) > 0 {
@@ -203,6 +205,9 @@ func (self *AtomicState) Push(key *Key, tag string, lease *Lease) error {
 		}
 
 		entry := self.cache.Get(next.key)
+		if entry == nil {
+			panic("Could not find cache entry for "+next.key.String())
+		}
 		if entry.source == REMOTE {
 			continue
 		}
