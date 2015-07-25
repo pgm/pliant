@@ -1,5 +1,16 @@
 # pliant
 
+TODO:
+    Finish garbage collector
+        Assuming world is stopped
+    Improve error handling
+    Add fuse client
+    Garbage collector extension:
+        Tricolor collector with concurrent labeling
+
+----------------
+
+
 Time to switch to a B-Tree for directories:
 
 min block size

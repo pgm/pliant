@@ -204,6 +204,9 @@ func (self *AtomicState) Push(key *Key, tag string, lease *Lease) error {
 			continue
 		}
 
+		// remember we've handled this block
+		seen[*next.key] = next.key
+
 		entry := self.cache.Get(next.key)
 		if entry == nil {
 			panic("Could not find cache entry for "+next.key.String())
@@ -214,6 +217,9 @@ func (self *AtomicState) Push(key *Key, tag string, lease *Lease) error {
 
 		// copy chunk to remote
 		self.chunks.PushToRemote(next.key)
+		// remember it's now available on the remote, to prevent pushing it again in the future
+		// this may alleviate the need for tracking blocks with 'seen'
+		self.cache.Put(next.key, &cacheEntry{source: REMOTE, resource: entry.resource})
 
 		if !next.isDir {
 			continue
@@ -251,7 +257,6 @@ func (self *AtomicState) unsafeGetDirsFromPath(path *Path) ([]Directory, error) 
 		for k, v := range self.roots {
 			fmt.Printf("  %s: %s\n", k, v)
 		}
-		panic(fmt.Sprintf("Could not find \"%s\"", path.path[0]))
 		return nil, NO_SUCH_PATH
 	}
 	i := 0
