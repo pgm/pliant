@@ -81,6 +81,16 @@ type ChunkService interface {
 	Put(key *Key, resource Resource)
 }
 
+type KeyIterator interface {
+	HasNext() bool
+	Next() *Key
+}
+
+type IterableChunkService interface {
+	ChunkService
+	Iterate () KeyIterator
+}
+
 type TagService interface {
 	Put(name string, key *Key)
 	Get(name string) *Key

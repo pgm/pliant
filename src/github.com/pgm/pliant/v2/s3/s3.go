@@ -7,6 +7,9 @@ import (
 	"bytes"
 	"github.com/pgm/pliant/v2"
 	"net/http"
+
+//	"github.com/aws/aws-sdk-go/aws"
+//	ss "github.com/aws/aws-sdk-go/service/s3"
 )
 
 type AllocTempDestFn func () string
@@ -58,6 +61,18 @@ func NewS3ChunkService(endpoint string, bucket string, prefix string, getDestFn 
 	return p
 }
 
+func (c *S3ChunkService) Delete(key *v2.Key) {
+	conf := new(s3gof3r.Config)
+	*conf = *s3gof3r.DefaultConfig
+
+	s3 := s3gof3r.New(c.EndPoint, c.Keys)
+	b := s3.Bucket(c.Bucket)
+	path := c.Prefix + "/" + key.String()
+	err := b.Delete(path)
+	if err != nil {
+		panic("Error Delete")
+	}
+}
 
 func (c *S3ChunkService) Get(key *v2.Key) v2.Resource {
 	conf := new(s3gof3r.Config)
@@ -159,4 +174,7 @@ func (c *S3TagService) Get(name string) *v2.Key {
 
 	return v2.KeyFromBytes(w.Bytes())
 }
+
+//func (c *S3TagService) GetKeys() []*v2.Key {
+//}
 

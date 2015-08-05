@@ -71,6 +71,13 @@ func main() {
 			},
 		},
 		{
+			Name: "gc",
+			Usage: "Runs GC",
+//func gc(roots []*Key, chunks IterableChunkService) {
+			Action: func(c *cli.Context) {
+			},
+		},
+		{
 			Name:      "link",
 			Usage:     "link the given key into the specified path",
 			Action: func(c *cli.Context) {
