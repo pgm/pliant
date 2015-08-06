@@ -141,8 +141,13 @@ func (c *Coloring) mark(key *v2.Key, color Color) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	fmt.Printf("Mark %s %s\n", key.String(), color)
+
 	if color == GRAY {
-		c.gray[*key] = 1
+		_, isBlack := c.black[*key]
+		if !isBlack {
+			c.gray[*key] = 1
+		}
 	} else if color == BLACK {
 		delete(c.gray, *key)
 		c.black[*key] = 1
@@ -186,11 +191,15 @@ func (c *Coloring) reset() {
 }
 
 func (c *Coloring) colorKeys (roots []*v2.Key, chunks v2.ChunkService, dirService v2.DirectoryService) {
+	fmt.Printf("colorKeys reset")
 	c.reset()
 
+	fmt.Printf("colorKeys gray")
 	for _, root := range(roots) {
 		c.mark(root, GRAY)
 	}
+
+	c.mark(v2.EMPTY_DIR_KEY, BLACK)
 
 	for {
 		next := c.pickGray()
@@ -198,9 +207,7 @@ func (c *Coloring) colorKeys (roots []*v2.Key, chunks v2.ChunkService, dirServic
 			break
 		}
 
-		if *next == *v2.EMPTY_DIR_KEY {
-			continue
-		}
+		fmt.Printf("pick gray %s\n", next.String())
 
 		entry := chunks.Get(next)
 		if entry == nil {
@@ -239,6 +246,7 @@ func (coloring *Coloring) freeWhiteKeys(chunks v2.IterableChunkService, freeCall
 	it := chunks.Iterate()
 	for it.HasNext() {
 		key := it.Next()
+		fmt.Printf("next key %s\n", key.String())
 
 		color := coloring.get(key)
 		if color == WHITE {

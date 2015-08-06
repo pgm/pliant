@@ -45,6 +45,37 @@ func (self *MemChunkService) PrintDebug() {
 	}
 }
 
+type MemKeyIterator struct {
+	keys [] *Key
+	index int
+}
+
+func (self *MemKeyIterator) HasNext() bool {
+	fmt.Printf("HasNext\n")
+	return len(self.keys) > self.index
+}
+
+func (self *MemKeyIterator) Next() *Key {
+	key := self.keys[self.index]
+	self.index++
+	fmt.Printf("Next() %s\n", key.String())
+	return key
+}
+
+func (self *MemChunkService) Iterate() KeyIterator {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
+	keys := make([]*Key, 0, len(self.chunks))
+	for key, _ := range(self.chunks) {
+		// make a copy because we're going to append a pointer to this to the list
+		k := key
+		keys = append(keys, &k)
+	}
+
+	return &MemKeyIterator{keys: keys, index: 0}
+}
+
 //Get(key *Key) Resource;
 //Put(key *Key, resource Resource);
 
@@ -64,20 +95,3 @@ func (r *MemResource) GetReader() io.Reader {
 	return bytes.NewBuffer(r.data)
 }
 
-//func (self *MemChunkService) Get(key *Key) Resource {
-//	self.lock.Lock()
-//	data, hasKey := self.table[*key]
-//	self.lock.Unlock()
-//
-//	if !hasKey {
-//		panic("No such key");
-//	}
-//
-//	return NewMemResource(data)
-//}
-//
-//func (self *MemChunkService) Put(key *Key, resource Resource) {
-//	self.lock.Lock()
-//	self.table[*key] = MemResource(resource).data;
-//	self.lock.Unlock()
-//}
