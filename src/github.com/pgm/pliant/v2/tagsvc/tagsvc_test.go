@@ -20,8 +20,11 @@ func (s *TagSvcSuite) TestLeases(c *C) {
 	key3 := v2.Key{3};
 
 	root := NewRoots()
+	c.Assert(len(root.GetRoots()), Equals, 0)
 	root.AddLease(100, &key1)
+	c.Assert(len(root.GetRoots()), Equals, 1)
 	root.AddLease(101, &key2)
+	c.Assert(len(root.GetRoots()), Equals, 2)
 	root.AddLease(102, &key3)
 
 	c.Assert(len(root.GetRoots()), Equals, 3)

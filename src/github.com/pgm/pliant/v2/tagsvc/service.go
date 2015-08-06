@@ -10,6 +10,7 @@ import (
 	"github.com/pgm/pliant/v2"
 	"github.com/pgm/pliant/v2/s3"
 	"fmt"
+	"strconv"
 )
 
 type Config struct {
@@ -79,12 +80,12 @@ func StartServer(bindAddr string, config *Config) error {
 	ac := Master{}
 	rpc.Register(ac)
 	rpc.HandleHTTP()
-	l, e := net.Listen("tcp", fmt.Sprintf(":%d",config.MasterPort.String()))
+	l, e := net.Listen("tcp", fmt.Sprintf(":%d", strconv.Itoa(config.MasterPort)))
 	if e != nil {
 		log.Fatal("listen error:", e)
 	}
 	go http.Serve(l, nil)
-
+	return nil
 //	go http.Serve(l, nil)
 //	server := rpc.NewServer()
 //	server.Register(&ac)

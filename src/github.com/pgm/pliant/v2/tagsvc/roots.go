@@ -3,6 +3,7 @@ package tagsvc
 import ("github.com/pgm/pliant/v2"
 	"sync"
 	"container/heap"
+	"fmt"
 )
 
 type Color int
@@ -14,7 +15,7 @@ const (
 )
 
 type Roots struct {
-	lock sync.Locker
+	lock sync.Mutex
 
 	// all named roots
 	labels map[string] *v2.Key
@@ -33,6 +34,7 @@ func NewRoots() *Roots {
 		leases : l,
 		coloring : &Coloring{gray: make(map[v2.Key] int), black: make(map[v2.Key] int)} }
 	heap.Init( &roots.leases )
+	fmt.Printf("%s", roots)
 	return roots
 }
 
@@ -71,9 +73,11 @@ func (r *Roots) Expire(oldestToKeep uint64) []*v2.Key {
 	l := r.leases
 	expired := make([]*v2.Key, 0, 10)
 	for len(l) > 0 && l.Peek().timestamp < oldestToKeep {
-		next := l.Pop().(*v2.Key)
+		kl := heap.Pop(&l).(KeyLease)
+		next := kl.key
 		expired = append(expired, next)
 	}
+	r.leases = l
 	return expired
 }
 
@@ -82,7 +86,7 @@ func (r *Roots) GetRoots() []*v2.Key {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	roots := make([]*v2.Key, len(r.leases) + len(r.labels))
+	roots := make([]*v2.Key, 0, len(r.leases) + len(r.labels))
 	l := r.leases
 	for i := 0; i < len(l) ; i++ {
 		roots = append(roots, r.leases[i].key)
@@ -123,11 +127,11 @@ func (l *Leases) Pop() interface{} {
 }
 
 func (l *Leases) Peek() KeyLease {
-	return (*l)[len(*l)-1]
+	return (*l)[0]
 }
 
 type Coloring struct {
-	lock sync.Locker
+	lock sync.Mutex
 
 	gray map[v2.Key] int
 	black map[v2.Key] int

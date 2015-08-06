@@ -4,7 +4,7 @@ import (
 	"github.com/rlmcpherson/s3gof3r"
 	"io"
 	"os"
-	"bytes"
+//	"bytes"
 	"github.com/pgm/pliant/v2"
 	"net/http"
 
@@ -26,23 +26,6 @@ type S3ChunkService struct {
 	S3Parameters
 	DownloadDir string
 	MaxFetchKeys int64
-}
-
-type S3TagService struct {
-	S3Parameters
-}
-
-func NewS3TagService(endpoint string, bucket string, prefix string) *S3TagService {
-	keys, err := s3gof3r.EnvKeys()
-	if err != nil {
-		panic(err.Error())
-	}
-	p := &S3TagService{}
-	p.EndPoint = endpoint
-	p.Bucket = bucket
-	p.Keys = keys
-	p.Prefix = prefix
-	return p
 }
 
 func NewS3ChunkService(endpoint string, bucket string, prefix string, getDestFn AllocTempDestFn ) *S3ChunkService {
@@ -144,7 +127,7 @@ func (c *S3KeyIterator) Next() *v2.Key {
 	return key
 }
 
-func (c *S3ChunkService) Iterate () *S3KeyIterator {
+func (c *S3ChunkService) Iterate () v2.KeyIterator {
 	return &S3KeyIterator{Bucket: c.Bucket, Prefix: c.Prefix, MaxFetchKeys: c.MaxFetchKeys}
 }
 
@@ -205,52 +188,4 @@ func (c *S3ChunkService) Put(key *v2.Key, resource v2.Resource) {
 		panic("Error Copying")
 	}
 }
-
-
-func (c *S3TagService) Put(name string, key *v2.Key) {
-	conf := new(s3gof3r.Config)
-	*conf = *s3gof3r.DefaultConfig
-	s3 := s3gof3r.New(c.EndPoint, c.Keys)
-	b := s3.Bucket(c.Bucket)
-
-	r := bytes.NewBuffer(key.AsBytes())
-
-	header := make(http.Header)
-	path := c.Prefix + "/" + name
-	w, err := b.PutWriter(path, header, conf)
-	if err != nil {
-		panic(err.Error())
-	}
-	defer w.Close()
-
-	if _, err = io.Copy(w, r); err != nil {
-		panic(err.Error())
-	}
-}
-
-func (c *S3TagService) Get(name string) *v2.Key {
-	conf := new(s3gof3r.Config)
-	*conf = *s3gof3r.DefaultConfig
-	s3 := s3gof3r.New(c.EndPoint, c.Keys)
-	b := s3.Bucket(c.Bucket)
-
-	w := bytes.NewBuffer(make([]byte, 0))
-
-	path := c.Prefix + "/" + name
-	r, _, err := b.GetReader(path, conf)
-	if err != nil {
-		panic(err.Error())
-	}
-	defer r.Close()
-
-	if _, err = io.Copy(w, r); err != nil {
-		panic("Error Copying")
-	}
-
-	return v2.KeyFromBytes(w.Bytes())
-}
-
-func (c *S3TagService) GetKeys() []*v2.Key {
-}
-
 
