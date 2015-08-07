@@ -1,12 +1,24 @@
 # pliant
 
 TODO:
-    Finish garbage collector
-        Assuming world is stopped
+    Add creation leases (has effect of treating any keys created in the window as "marked")
+	Create(timeout) -> lease_id (Or should it use root block id?)
+	Renew(lease_id, timeout)  (Timeout = 0 to clear lease)
+
+	Change upload to create lease upon start
+	Periodically renew lease while upload is ongoing
+	Cancel lease after upload is complete.  Only if all renews are successful, is upload considered success.   (Should we avoid setting blocks in local cache as "in remote" until successful upload?)
+
+    Add persistence of labels and leases.  (And recovery to load them on startup)
+    Change minion to use master for label service.
+    Collect stats during GC
+    Collect stats during push
+    Collect stats during pull
+    Report more metadata in ls
+    Fuzzying test client
+
     Improve error handling
     Add fuse client
-    Garbage collector extension:
-        Tricolor collector with concurrent labeling
 
 ----------------
 

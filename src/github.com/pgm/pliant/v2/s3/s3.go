@@ -8,8 +8,9 @@ import (
 	"github.com/pgm/pliant/v2"
 	"net/http"
 
-//	"github.com/aws/aws-sdk-go/aws"
 	ss "github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/aws"
+	"fmt"
 )
 
 type AllocTempDestFn func () string
@@ -87,7 +88,9 @@ func (c *S3KeyIterator) fetchNext(nextMarker *string) {
 	objects := page.Contents
 	c.keyBatch = make([]*v2.Key, len(objects))
 	for i, obj := range(objects) {
-		c.keyBatch[i] = v2.NewKey(*obj.Key)
+		fmt.Printf("obj=%s\n", obj)
+		keyComponent := ((*obj.Key)[len(c.Prefix):])
+		c.keyBatch[i] = v2.NewKey(keyComponent)
 	}
 	c.batchIndex = 0
 }
@@ -128,7 +131,10 @@ func (c *S3KeyIterator) Next() *v2.Key {
 }
 
 func (c *S3ChunkService) Iterate () v2.KeyIterator {
-	return &S3KeyIterator{Bucket: c.Bucket, Prefix: c.Prefix, MaxFetchKeys: c.MaxFetchKeys}
+	s3c := ss.New(aws.DefaultConfig)
+	it := &S3KeyIterator{Bucket: c.Bucket, Prefix: c.Prefix+"/", MaxFetchKeys: c.MaxFetchKeys, S3C: s3c}
+	it.fetchNext(nil)
+	return it
 }
 
 
