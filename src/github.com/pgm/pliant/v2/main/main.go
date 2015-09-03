@@ -5,6 +5,7 @@ import (
 	"github.com/codegangsta/cli"
 	"github.com/pgm/pliant/v2"
 	"github.com/pgm/pliant/v2/s3"
+	"github.com/pgm/pliant/v2/tagsvc"
 	"net/rpc"
 	"fmt"
 )
@@ -51,23 +52,43 @@ func main() {
 			},
 		},
 		{
-			Name:      "start",
-			Usage:     "starts server",
+			Name:      "minion",
+			Usage:     "starts master service",
 			Action: func(c *cli.Context) {
+				// contact the master and get the config
+				masterAddress := c.Args().Get(0)
+				tagsvcClient := tagsvc.NewClient(masterAddress)
+				config, err := tagsvcClient.GetConfig()
+				if err != nil {
+					panic(err.Error())
+				}
+
 				if _, err := os.Stat(SERVER_BINDING); err == nil {
 					os.Remove(SERVER_BINDING)
 				}
 
-//				chunkService := v2.NewMemChunkService()
-//				tags := v2.NewMemTagService()
-
 				cache,_ := v2.NewFilesystemCacheDB("cache")
-				tags := s3.NewS3TagService("s3.amazonaws.com", "pliantdemo", "labels")
-				chunkService := s3.NewS3ChunkService("s3.amazonaws.com", "pliantdemo", "chunks", cache.AllocateTempFilename)
+				tags := tagsvc.NewTagService(tagsvcClient)
+				chunkService := s3.NewS3ChunkService(config.Endpoint, config.Bucket, config.Prefix, cache.AllocateTempFilename)
 				chunks := v2.NewChunkCache(chunkService, cache)
 				ds := v2.NewLeafDirService(chunks)
 				as := v2.NewAtomicState(ds, chunks, cache, tags)
 				panicIfError(v2.StartServer(SERVER_BINDING, as))
+			},
+		},
+		{
+			Name:      "master",
+			Usage:     "starts master service",
+			Action: func(c *cli.Context) {
+				accessKeyId := os.Getenv("AWS_ACCESS_KEY_ID")
+				secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+				endpoint := "s3.amazonaws.com"
+				bucket := ""
+				prefix := ""
+				port := 5555
+
+				config := &tagsvc.Config{AccessKeyId: accessKeyId, SecretAccessKey: secretAccessKey, Endpoint: endpoint, Bucket: bucket, Prefix: prefix, MasterPort: port};
+				tagsvc.StartServer(config)
 			},
 		},
 		{

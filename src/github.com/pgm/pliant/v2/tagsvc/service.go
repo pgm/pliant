@@ -76,7 +76,7 @@ func (t *Master) GetConfig(nothing *string, reply *Config) error {
 	return nil
 }
 
-func StartServer(bindAddr string, config *Config) error {
+func StartServer(config *Config) error {
 	ac := Master{}
 	rpc.Register(ac)
 	rpc.HandleHTTP()
@@ -86,18 +86,68 @@ func StartServer(bindAddr string, config *Config) error {
 	}
 	go http.Serve(l, nil)
 	return nil
-//	go http.Serve(l, nil)
-//	server := rpc.NewServer()
-//	server.Register(&ac)
-//	l, err := net.ListenUnix("unix", &net.UnixAddr{bindAddr, "unix"})
-//	if err != nil {
-//		return err
-//	}
-//	defer os.Remove(bindAddr)
-//
-//	log.Printf("Ready to accept requests via %s\n", bindAddr)
-//	server.Accept(l)
-//	return nil
 }
 
+type Client struct {
+	client *rpc.Client
+}
+
+func (c *Client) GetConfig() (*Config, error) {
+	var config Config;
+	err := c.client.Call("GetConfig", nil, &config)
+	if err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
+func (c *Client) Get(label string) (*v2.Key, error) {
+	var key v2.Key
+	err := c.client.Call("Get", label, &key)
+	if err != nil {
+		return nil, err
+	}
+	return &key, nil
+}
+
+func (c *Client) Set(label string, key *v2.Key) error {
+	err := c.client.Call("Set", &SetArgs{label, key}, nil)
+	return err
+}
+
+func (c *Client) AddLease(Timeout uint64, Key *v2.Key) error {
+	err := c.client.Call("Set", &AddLeaseArgs{Timeout, Key}, nil)
+	return err
+}
+
+func NewClient(address string) *Client {
+	client, err := rpc.DialHTTP("tcp", address)
+	if err != nil {
+		log.Fatal("dialing:", err)
+	}
+	return &Client{client: client}
+}
+
+type TagService struct {
+	client *Client
+}
+
+func (t *TagService) Put(name string, key *v2.Key) {
+	err := t.client.Set(name, key)
+	if err != nil {
+		panic(err.Error())
+	}
+}
+
+func (t *TagService) Get(name string) *v2.Key {
+	key, err := t.client.Get(name)
+	if err != nil {
+		panic(err.Error())
+	}
+	return key
+}
+
+func NewTagService(c *Client) v2.TagService {
+	return &TagService{client : c}
+}
 
