@@ -80,3 +80,34 @@ func (s *TagSvcSuite) TestSimpleGC(c *C) {
 
 	c.Assert(*countPtr, Equals, 2)
 }
+
+func (s *TagSvcSuite) TestClientServer (c *C) {
+
+	config := &Config{
+		AccessKeyId     :"access",
+		SecretAccessKey :"secret",
+		Endpoint        :"http://endpoint",
+		Bucket          :"bucket",
+		MasterPort      :0,
+		Prefix          :"prefix"}
+
+	l, err := StartServer(config)
+	c.Assert(err, IsNil)
+
+	client := NewClient(l.Addr().String())
+	vconfig, err := client.GetConfig()
+	c.Assert(err, IsNil)
+	c.Assert(vconfig, DeepEquals, config)
+
+	key1 := v2.Key{10}
+	err2 := client.AddLease(uint64(100), &key1)
+	c.Assert(err2, IsNil)
+
+	key2 := v2.Key{10}
+	tagSvc := NewTagService(client)
+	tagSvc.Put("label", &key2)
+	vkey := tagSvc.Get("label")
+
+	c.Assert(vkey, DeepEquals, &key2)
+	l.Close()
+}

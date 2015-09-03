@@ -4,12 +4,11 @@ import (
 	"net"
 	"net/http"
 	"net/rpc"
-	//	"os"
 	"fmt"
 	"github.com/pgm/pliant/v2"
 	"github.com/pgm/pliant/v2/s3"
 	"log"
-	"strconv"
+//	"strconv"
 	"time"
 )
 
@@ -28,8 +27,8 @@ type Master struct {
 }
 
 type SetArgs struct {
-	label string
-	key   *v2.Key
+	Label string
+	Key   *v2.Key
 }
 
 type AddLeaseArgs struct {
@@ -38,7 +37,7 @@ type AddLeaseArgs struct {
 }
 
 func (t *Master) Set(args *SetArgs, reply *bool) error {
-	t.roots.Set(args.label, args.key)
+	t.roots.Set(args.Label, args.Key)
 
 	*reply = true
 
@@ -70,21 +69,24 @@ func (t *Master) GC(label *string, reply *v2.Key) error {
 }
 
 func (t *Master) GetConfig(nothing *string, reply *Config) error {
+	fmt.Printf("reply=%s\nconfig=%s\n", reply, t.config)
 	*reply = *t.config
 
 	return nil
 }
 
-func StartServer(config *Config) error {
-	ac := Master{}
+func StartServer(config *Config) (net.Listener, error) {
+	ac := &Master{config: config, roots: NewRoots()}
 	rpc.Register(ac)
 	rpc.HandleHTTP()
-	l, e := net.Listen("tcp", fmt.Sprintf(":%d", strconv.Itoa(config.MasterPort)))
+	l, e := net.Listen("tcp", fmt.Sprintf("localhost:%d", config.MasterPort))
+//	l, e := net.Listen("tcp", strconv.Itoa(config.MasterPort))
 	if e != nil {
 		log.Fatal("listen error:", e)
+		return nil, e
 	}
 	go http.Serve(l, nil)
-	return nil
+	return l, nil
 }
 
 type Client struct {
@@ -93,7 +95,8 @@ type Client struct {
 
 func (c *Client) GetConfig() (*Config, error) {
 	var config Config
-	err := c.client.Call("GetConfig", nil, &config)
+	param := "nil"
+	err := c.client.Call("Master.GetConfig", param, &config)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +105,7 @@ func (c *Client) GetConfig() (*Config, error) {
 
 func (c *Client) Get(label string) (*v2.Key, error) {
 	var key v2.Key
-	err := c.client.Call("Get", label, &key)
+	err := c.client.Call("Master.Get", label, &key)
 	if err != nil {
 		return nil, err
 	}
@@ -110,12 +113,12 @@ func (c *Client) Get(label string) (*v2.Key, error) {
 }
 
 func (c *Client) Set(label string, key *v2.Key) error {
-	err := c.client.Call("Set", &SetArgs{label, key}, nil)
+	err := c.client.Call("Master.Set", &SetArgs{label, key}, nil)
 	return err
 }
 
 func (c *Client) AddLease(Timeout uint64, Key *v2.Key) error {
-	err := c.client.Call("Set", &AddLeaseArgs{Timeout, Key}, nil)
+	err := c.client.Call("Master.AddLease", &AddLeaseArgs{Timeout, Key}, nil)
 	return err
 }
 
