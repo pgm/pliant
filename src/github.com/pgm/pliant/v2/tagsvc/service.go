@@ -4,43 +4,43 @@ import (
 	"net"
 	"net/http"
 	"net/rpc"
-//	"os"
-	"time"
-	"log"
+	//	"os"
+	"fmt"
 	"github.com/pgm/pliant/v2"
 	"github.com/pgm/pliant/v2/s3"
-	"fmt"
+	"log"
 	"strconv"
+	"time"
 )
 
 type Config struct {
-	AccessKeyId string
+	AccessKeyId     string
 	SecretAccessKey string
-	Endpoint string
-	Bucket string
-	MasterPort int
-	Prefix string
+	Endpoint        string
+	Bucket          string
+	MasterPort      int
+	Prefix          string
 }
 
 type Master struct {
-	roots *Roots
+	roots  *Roots
 	config *Config
 }
 
 type SetArgs struct {
 	label string
-	key *v2.Key
+	key   *v2.Key
 }
 
 type AddLeaseArgs struct {
-	Timeout uint64 ;
-	Key *v2.Key
+	Timeout uint64
+	Key     *v2.Key
 }
 
 func (t *Master) Set(args *SetArgs, reply *bool) error {
 	t.roots.Set(args.label, args.key)
 
-	*reply = true;
+	*reply = true
 
 	return nil
 }
@@ -53,7 +53,7 @@ func (t *Master) Get(label *string, reply *v2.Key) error {
 
 func (t *Master) AddLease(args *AddLeaseArgs, reply *bool) error {
 	now := uint64(time.Now().Unix())
-	t.roots.AddLease(args.Timeout + now, args.Key)
+	t.roots.AddLease(args.Timeout+now, args.Key)
 
 	*reply = true
 
@@ -68,7 +68,6 @@ func (t *Master) GC(label *string, reply *v2.Key) error {
 
 	return nil
 }
-
 
 func (t *Master) GetConfig(nothing *string, reply *Config) error {
 	*reply = *t.config
@@ -93,7 +92,7 @@ type Client struct {
 }
 
 func (c *Client) GetConfig() (*Config, error) {
-	var config Config;
+	var config Config
 	err := c.client.Call("GetConfig", nil, &config)
 	if err != nil {
 		return nil, err
@@ -148,6 +147,5 @@ func (t *TagService) Get(name string) *v2.Key {
 }
 
 func NewTagService(c *Client) v2.TagService {
-	return &TagService{client : c}
+	return &TagService{client: c}
 }
-

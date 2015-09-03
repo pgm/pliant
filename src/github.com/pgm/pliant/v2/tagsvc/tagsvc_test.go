@@ -2,11 +2,10 @@ package tagsvc
 
 import (
 	"fmt"
+	"github.com/golang/protobuf/proto"
+	"github.com/pgm/pliant/v2"
 	. "gopkg.in/check.v1"
 	"testing"
-	"github.com/pgm/pliant/v2"
-	"github.com/golang/protobuf/proto"
-
 )
 
 type TagSvcSuite struct{}
@@ -17,9 +16,9 @@ var _ = fmt.Sprintf("hello!")
 func Test(t *testing.T) { TestingT(t) }
 
 func (s *TagSvcSuite) TestLeases(c *C) {
-	key1 := v2.Key{1};
-	key2 := v2.Key{2};
-	key3 := v2.Key{3};
+	key1 := v2.Key{1}
+	key2 := v2.Key{2}
+	key3 := v2.Key{3}
 
 	root := NewRoots()
 	c.Assert(len(root.GetRoots()), Equals, 0)
@@ -40,9 +39,9 @@ func (s *TagSvcSuite) TestLeases(c *C) {
 }
 
 func (s *TagSvcSuite) TestSetRoot(c *C) {
-	key1 := v2.Key{1};
-	key2 := v2.Key{2};
-	key3 := v2.Key{3};
+	key1 := v2.Key{1}
+	key2 := v2.Key{2}
+	key3 := v2.Key{3}
 
 	root := NewRoots()
 	root.Set("1", &key1)
@@ -57,9 +56,9 @@ func (s *TagSvcSuite) TestSetRoot(c *C) {
 }
 
 func (s *TagSvcSuite) TestSimpleGC(c *C) {
-	fileKey1 := v2.Key{10};
-	fileKey2 := v2.Key{11};
-	fileKey3 := v2.Key{12};
+	fileKey1 := v2.Key{10}
+	fileKey2 := v2.Key{11}
+	fileKey3 := v2.Key{12}
 
 	root := NewRoots()
 	count := 0
@@ -75,9 +74,9 @@ func (s *TagSvcSuite) TestSimpleGC(c *C) {
 
 	fmt.Printf("GC\n")
 	root.GC(dirService, chunks, func(key *v2.Key) {
-			fmt.Printf("free %s\n", key.String())
-			*countPtr += 1
-		})
+		fmt.Printf("free %s\n", key.String())
+		*countPtr += 1
+	})
 
 	c.Assert(*countPtr, Equals, 2)
 }

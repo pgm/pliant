@@ -1,12 +1,14 @@
 package tagsvc
 
-import ("github.com/pgm/pliant/v2"
-	"sync"
+import (
 	"container/heap"
 	"fmt"
+	"github.com/pgm/pliant/v2"
+	"sync"
 )
 
 type Color int
+
 const (
 	UNDEFINED Color = iota
 	WHITE
@@ -18,7 +20,7 @@ type Roots struct {
 	lock sync.Mutex
 
 	// all named roots
-	labels map[string] *v2.Key
+	labels map[string]*v2.Key
 
 	// all anonymous roots with a time-to-live.  After which they expire
 	leases Leases
@@ -28,12 +30,12 @@ type Roots struct {
 }
 
 func NewRoots() *Roots {
-	l := Leases(make([]KeyLease,0))
-	roots := &Roots {
-		labels : make(map[string] *v2.Key),
-		leases : l,
-		coloring : &Coloring{gray: make(map[v2.Key] int), black: make(map[v2.Key] int)} }
-	heap.Init( &roots.leases )
+	l := Leases(make([]KeyLease, 0))
+	roots := &Roots{
+		labels:   make(map[string]*v2.Key),
+		leases:   l,
+		coloring: &Coloring{gray: make(map[v2.Key]int), black: make(map[v2.Key]int)}}
+	heap.Init(&roots.leases)
 	fmt.Printf("%s", roots)
 	return roots
 }
@@ -42,7 +44,7 @@ func (r *Roots) Set(label string, key *v2.Key) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	if(key == nil) {
+	if key == nil {
 		delete(r.labels, label)
 	} else {
 		r.labels[label] = key
@@ -86,12 +88,12 @@ func (r *Roots) GetRoots() []*v2.Key {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	roots := make([]*v2.Key, 0, len(r.leases) + len(r.labels))
+	roots := make([]*v2.Key, 0, len(r.leases)+len(r.labels))
 	l := r.leases
-	for i := 0; i < len(l) ; i++ {
+	for i := 0; i < len(l); i++ {
 		roots = append(roots, r.leases[i].key)
 	}
-	for _, key := range(r.labels) {
+	for _, key := range r.labels {
 		roots = append(roots, key)
 	}
 	return roots
@@ -99,18 +101,18 @@ func (r *Roots) GetRoots() []*v2.Key {
 
 func (r *Roots) GC(dirService v2.DirectoryService, chunks v2.IterableChunkService, freeCallback FreeCallback) {
 	roots := r.GetRoots()
-	r.coloring.colorKeys (roots, chunks, dirService)
+	r.coloring.colorKeys(roots, chunks, dirService)
 	r.coloring.freeWhiteKeys(chunks, freeCallback)
 }
 
-
 type KeyLease struct {
 	timestamp uint64
-	key *v2.Key
+	key       *v2.Key
 }
 
 type Leases []KeyLease
-func (l Leases) Len() int { return len(l) }
+
+func (l Leases) Len() int           { return len(l) }
 func (l Leases) Less(i, j int) bool { return l[i].timestamp < l[j].timestamp }
 func (l Leases) Swap(i, j int)      { l[i], l[j] = l[j], l[i] }
 
@@ -133,8 +135,8 @@ func (l *Leases) Peek() KeyLease {
 type Coloring struct {
 	lock sync.Mutex
 
-	gray map[v2.Key] int
-	black map[v2.Key] int
+	gray  map[v2.Key]int
+	black map[v2.Key]int
 }
 
 func (c *Coloring) mark(key *v2.Key, color Color) {
@@ -175,7 +177,7 @@ func (c *Coloring) pickGray() *v2.Key {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	for key, _ := range(c.gray) {
+	for key, _ := range c.gray {
 		return &key
 	}
 
@@ -186,16 +188,16 @@ func (c *Coloring) reset() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.gray = make(map[v2.Key] int)
-	c.black = make(map[v2.Key] int)
+	c.gray = make(map[v2.Key]int)
+	c.black = make(map[v2.Key]int)
 }
 
-func (c *Coloring) colorKeys (roots []*v2.Key, chunks v2.ChunkService, dirService v2.DirectoryService) {
+func (c *Coloring) colorKeys(roots []*v2.Key, chunks v2.ChunkService, dirService v2.DirectoryService) {
 	fmt.Printf("colorKeys reset")
 	c.reset()
 
 	fmt.Printf("colorKeys gray")
-	for _, root := range(roots) {
+	for _, root := range roots {
 		c.mark(root, GRAY)
 	}
 
@@ -252,9 +254,8 @@ func (coloring *Coloring) freeWhiteKeys(chunks v2.IterableChunkService, freeCall
 		if color == WHITE {
 			// TODO: check created time and skip if key is new
 			freeCallback(key)
-		} else if(color != BLACK) {
+		} else if color != BLACK {
 			panic("Key was neither black nor white")
 		}
 	}
 }
-
