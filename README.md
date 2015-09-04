@@ -1,6 +1,17 @@
 # pliant
 
 TODO:
+	add goroutine to StartMaster to clears expired leases
+	add persistence of Leases and roots to Master (maybe as an append log for now?)
+	add cmd start master proc (StartMaster)
+	add method to query for all keys/leases
+
+	add to AtomicState:
+	    local GC
+	    registration and renewal of leased keys (Maybe GC should determine lease list)
+	    persistence of local cache state
+
+
     Add creation leases (has effect of treating any keys created in the window as "marked")
 	Create(timeout) -> lease_id (Or should it use root block id?)
 	Renew(lease_id, timeout)  (Timeout = 0 to clear lease)
@@ -19,6 +30,8 @@ TODO:
 
     Improve error handling
     Add fuse client
+
+
 
 ----------------
 
