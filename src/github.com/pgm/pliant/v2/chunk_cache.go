@@ -52,10 +52,10 @@ func (c *ChunkCache) PushToRemote(key *Key) error {
 	fmt.Printf("**** PushToRemote %s\n", key.String())
 	resource := c.Get(key)
 	c.remote.Put(key, resource)
-//	r := c.remote.Get(KeyFromBytes(key.AsBytes()))
-//	if r == nil {
-//		panic("failed put")
-//	}
+	//	r := c.remote.Get(KeyFromBytes(key.AsBytes()))
+	//	if r == nil {
+	//		panic("failed put")
+	//	}
 	return nil
 }
 

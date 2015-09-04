@@ -9,7 +9,7 @@ import (
 
 type Key [32]byte
 
-var EMPTY_DIR_KEY_ Key = ([32]byte{1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1})
+var EMPTY_DIR_KEY_ Key = ([32]byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1})
 var EMPTY_DIR_KEY *Key = &EMPTY_DIR_KEY_
 
 //func (k Key) String() string {
@@ -88,7 +88,7 @@ type KeyIterator interface {
 
 type IterableChunkService interface {
 	ChunkService
-	Iterate () KeyIterator
+	Iterate() KeyIterator
 }
 
 type TagService interface {

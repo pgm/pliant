@@ -1,14 +1,16 @@
 package v2
 
-import ( "sync")
+import (
+	"sync"
+)
 
 type MemTagService struct {
 	lock sync.Mutex
-	tags map[string] *Key
+	tags map[string]*Key
 }
 
 func NewMemTagService() *MemTagService {
-	return &MemTagService{tags: make(map[string] *Key)}
+	return &MemTagService{tags: make(map[string]*Key)}
 }
 
 func (m *MemTagService) Get(tag string) *Key {

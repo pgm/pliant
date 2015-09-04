@@ -25,7 +25,7 @@ type Atomic interface {
 
 	CreateResourceForLocalFile(localFile string) (Resource, error)
 
-	Pull(tag string, lease *Lease) *Key;
+	Pull(tag string, lease *Lease) *Key
 	Push(key *Key, new_tag string, lease *Lease) error
 }
 
@@ -36,7 +36,7 @@ type AtomicClient struct {
 
 type PushArgs struct {
 	Source string
-	Tag string
+	Tag    string
 }
 
 func (ac *AtomicClient) Push(args *PushArgs, result *string) error {
@@ -48,16 +48,16 @@ func (ac *AtomicClient) Push(args *PushArgs, result *string) error {
 
 	key := KeyFromBytes(metadata.GetKey())
 
-	return ac.atomic.Push(key, args.Tag, &Lease{});
+	return ac.atomic.Push(key, args.Tag, &Lease{})
 }
 
 type PullArgs struct {
-	Tag string
+	Tag         string
 	Destination string
 }
 
 func (ac *AtomicClient) Pull(args *PullArgs, result *string) error {
-	key := ac.atomic.Pull(args.Tag, &Lease{});
+	key := ac.atomic.Pull(args.Tag, &Lease{})
 
 	parsedPath := NewPath(args.Destination)
 	return ac.atomic.Link(key, parsedPath, true)
@@ -151,14 +151,14 @@ func (ac *AtomicClient) Unlink(path string, result *string) error {
 }
 
 type AtomicState struct {
-	lock       sync.Mutex  // protects access to roots
+	lock sync.Mutex // protects access to roots
 
-	roots      map[string]*FileMetadata
+	roots map[string]*FileMetadata
 
 	dirService DirectoryService
 	cache      *filesystemCacheDB
 	chunks     *ChunkCache
-	tags		TagService
+	tags       TagService
 }
 
 func NewAtomicState(dirService DirectoryService, chunks *ChunkCache, cache *filesystemCacheDB, tags TagService) *AtomicState {
@@ -166,7 +166,7 @@ func NewAtomicState(dirService DirectoryService, chunks *ChunkCache, cache *file
 }
 
 type typedKey struct {
-	key *Key
+	key   *Key
 	isDir bool
 }
 
@@ -181,14 +181,14 @@ func (self *AtomicState) DumpDebug() {
 	defer self.lock.Unlock()
 
 	fmt.Printf("Atomic state has %d entries\n", len(self.roots))
-	for k, v := range(self.roots) {
-		fmt.Printf("  %s -> %s\n", k, KeyFromBytes(v.GetKey()).String() )
+	for k, v := range self.roots {
+		fmt.Printf("  %s -> %s\n", k, KeyFromBytes(v.GetKey()).String())
 	}
 }
 
 func (self *AtomicState) Push(key *Key, tag string, lease *Lease) error {
-	seen := make(map[Key] *Key)
-	pending := make([] typedKey , 0, 1000)
+	seen := make(map[Key]*Key)
+	pending := make([]typedKey, 0, 1000)
 
 	// add empty dir as seen so we always skip it
 	seen[*EMPTY_DIR_KEY] = EMPTY_DIR_KEY
@@ -209,7 +209,7 @@ func (self *AtomicState) Push(key *Key, tag string, lease *Lease) error {
 
 		entry := self.cache.Get(next.key)
 		if entry == nil {
-			panic("Could not find cache entry for "+next.key.String())
+			panic("Could not find cache entry for " + next.key.String())
 		}
 		if entry.source == REMOTE {
 			continue

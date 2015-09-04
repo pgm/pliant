@@ -40,13 +40,13 @@ func (self *MemChunkService) PrintDebug() {
 	defer self.lock.Unlock()
 
 	log.Printf("%d chunks in %p\n", len(self.chunks), self)
-	for id, _ := range(self.chunks) {
+	for id, _ := range self.chunks {
 		log.Printf("chunk %s\n", id.String())
 	}
 }
 
 type MemKeyIterator struct {
-	keys [] *Key
+	keys  []*Key
 	index int
 }
 
@@ -67,7 +67,7 @@ func (self *MemChunkService) Iterate() KeyIterator {
 	defer self.lock.Unlock()
 
 	keys := make([]*Key, 0, len(self.chunks))
-	for key, _ := range(self.chunks) {
+	for key, _ := range self.chunks {
 		// make a copy because we're going to append a pointer to this to the list
 		k := key
 		keys = append(keys, &k)
@@ -94,4 +94,3 @@ func (r *MemResource) AsBytes() []byte {
 func (r *MemResource) GetReader() io.Reader {
 	return bytes.NewBuffer(r.data)
 }
-

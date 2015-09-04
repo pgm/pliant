@@ -1,10 +1,10 @@
 package v2
 
 import (
+	"log"
 	"net"
 	"net/rpc"
 	"os"
-	"log"
 )
 
 func StartServer(bindAddr string, atomic Atomic) error {

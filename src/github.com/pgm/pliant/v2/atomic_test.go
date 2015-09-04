@@ -113,7 +113,6 @@ func (s *AtomicSuite) TestAtomicFileOps(c *C) {
 	c.Assert("test", Equals, string(b))
 }
 
-
 func (s *AtomicSuite) TestPush(c *C) {
 	remoteChunks := NewMemChunkService()
 	tags := NewMemTagService()

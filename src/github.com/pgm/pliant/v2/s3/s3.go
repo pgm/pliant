@@ -4,37 +4,36 @@ import (
 	"github.com/rlmcpherson/s3gof3r"
 	"io"
 	"os"
-//	"bytes"
+	//	"bytes"
 	"github.com/pgm/pliant/v2"
 	"net/http"
 
-	ss "github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/aws"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
+	ss "github.com/aws/aws-sdk-go/service/s3"
 )
 
-type AllocTempDestFn func () string
+type AllocTempDestFn func() string
 
 type S3Parameters struct {
-	EndPoint string
-	Bucket string
-	Keys s3gof3r.Keys
+	EndPoint  string
+	Bucket    string
+	Keys      s3gof3r.Keys
 	GetDestFn AllocTempDestFn
-	Prefix string
+	Prefix    string
 }
 
 type S3ChunkService struct {
 	S3Parameters
-	DownloadDir string
+	DownloadDir  string
 	MaxFetchKeys int64
 }
 
-func NewS3ChunkService(endpoint string, bucket string, prefix string, getDestFn AllocTempDestFn ) *S3ChunkService {
+func NewS3ChunkService(endpoint string, bucket string, prefix string, getDestFn AllocTempDestFn) *S3ChunkService {
 	keys, err := s3gof3r.EnvKeys()
 	if err != nil {
 		panic(err.Error())
 	}
-
 
 	p := &S3ChunkService{}
 	p.EndPoint = endpoint
@@ -60,16 +59,15 @@ func (c *S3ChunkService) Delete(key *v2.Key) {
 	}
 }
 
-
 type S3KeyIterator struct {
-	Bucket string
-	Prefix string
+	Bucket       string
+	Prefix       string
 	MaxFetchKeys int64
-	S3C *ss.S3
-	MorePages bool
-	NextMarker string
+	S3C          *ss.S3
+	MorePages    bool
+	NextMarker   string
 
-	keyBatch []*v2.Key
+	keyBatch   []*v2.Key
 	batchIndex int
 }
 
@@ -77,17 +75,17 @@ func (c *S3KeyIterator) fetchNext(nextMarker *string) {
 	delimiter := "/"
 	p := &ss.ListObjectsInput{Bucket: &c.Bucket, Delimiter: &delimiter, Prefix: &c.Prefix, MaxKeys: &c.MaxFetchKeys, Marker: nextMarker}
 	page, err := c.S3C.ListObjects(p)
-	if(err != nil) {
+	if err != nil {
 		panic(err.Error())
 	}
 	c.MorePages = *page.IsTruncated
-	if(c.MorePages) {
+	if c.MorePages {
 		c.NextMarker = *page.NextMarker
 	}
 
 	objects := page.Contents
 	c.keyBatch = make([]*v2.Key, len(objects))
-	for i, obj := range(objects) {
+	for i, obj := range objects {
 		fmt.Printf("obj=%s\n", obj)
 		keyComponent := ((*obj.Key)[len(c.Prefix):])
 		c.keyBatch[i] = v2.NewKey(keyComponent)
@@ -122,7 +120,7 @@ func (c *S3KeyIterator) Next() *v2.Key {
 	key := c.keyBatch[c.batchIndex]
 	c.batchIndex++
 
-	if (c.batchIndex >= len(c.keyBatch) && c.MorePages) {
+	if c.batchIndex >= len(c.keyBatch) && c.MorePages {
 		nextMarker := c.NextMarker
 		c.fetchNext(&nextMarker)
 	}
@@ -130,13 +128,12 @@ func (c *S3KeyIterator) Next() *v2.Key {
 	return key
 }
 
-func (c *S3ChunkService) Iterate () v2.KeyIterator {
+func (c *S3ChunkService) Iterate() v2.KeyIterator {
 	s3c := ss.New(aws.DefaultConfig)
-	it := &S3KeyIterator{Bucket: c.Bucket, Prefix: c.Prefix+"/", MaxFetchKeys: c.MaxFetchKeys, S3C: s3c}
+	it := &S3KeyIterator{Bucket: c.Bucket, Prefix: c.Prefix + "/", MaxFetchKeys: c.MaxFetchKeys, S3C: s3c}
 	it.fetchNext(nil)
 	return it
 }
-
 
 func (c *S3ChunkService) Get(key *v2.Key) v2.Resource {
 	conf := new(s3gof3r.Config)
@@ -194,4 +191,3 @@ func (c *S3ChunkService) Put(key *v2.Key, resource v2.Resource) {
 		panic("Error Copying")
 	}
 }
-

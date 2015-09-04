@@ -81,14 +81,14 @@ func (s *TagSvcSuite) TestSimpleGC(c *C) {
 	c.Assert(*countPtr, Equals, 2)
 }
 
-func (s *TagSvcSuite) TestClientServer (c *C) {
+func (s *TagSvcSuite) TestClientServer(c *C) {
 	config := &Config{
-		AccessKeyId     :"access",
-		SecretAccessKey :"secret",
-		Endpoint        :"http://endpoint",
-		Bucket          :"bucket",
-		MasterPort      :0,
-		Prefix          :"prefix"}
+		AccessKeyId:     "access",
+		SecretAccessKey: "secret",
+		Endpoint:        "http://endpoint",
+		Bucket:          "bucket",
+		MasterPort:      0,
+		Prefix:          "prefix"}
 
 	l, err := StartServer(config)
 	c.Assert(err, IsNil)

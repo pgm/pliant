@@ -1,14 +1,14 @@
 package tagsvc
 
 import (
-	"net"
-	"net/http"
-	"net/rpc"
 	"fmt"
 	"github.com/pgm/pliant/v2"
 	"github.com/pgm/pliant/v2/s3"
 	"log"
-//	"strconv"
+	"net"
+	"net/http"
+	"net/rpc"
+	//	"strconv"
 	"time"
 )
 
@@ -80,7 +80,6 @@ func StartServer(config *Config) (net.Listener, error) {
 	rpc.Register(ac)
 	rpc.HandleHTTP()
 	l, e := net.Listen("tcp", fmt.Sprintf("localhost:%d", config.MasterPort))
-//	l, e := net.Listen("tcp", strconv.Itoa(config.MasterPort))
 	if e != nil {
 		log.Fatal("listen error:", e)
 		return nil, e
