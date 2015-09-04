@@ -82,7 +82,6 @@ func (s *TagSvcSuite) TestSimpleGC(c *C) {
 }
 
 func (s *TagSvcSuite) TestClientServer (c *C) {
-
 	config := &Config{
 		AccessKeyId     :"access",
 		SecretAccessKey :"secret",
@@ -109,5 +108,8 @@ func (s *TagSvcSuite) TestClientServer (c *C) {
 	vkey := tagSvc.Get("label")
 
 	c.Assert(vkey, DeepEquals, &key2)
+
+	c.Assert(tagSvc.Get("label2"), IsNil)
+
 	l.Close()
 }
