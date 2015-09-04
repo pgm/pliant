@@ -23,6 +23,13 @@ func fetchNames(d Directory) []string {
 	return names
 }
 
+func (s *BtreeSuite) TestKeyToStringConversions(c *C) {
+	fmt.Printf("TestKeyToStringConversions\n")
+	newKey := NewKey(EMPTY_DIR_KEY.String())
+	c.Assert(newKey, DeepEquals, EMPTY_DIR_KEY)
+	fmt.Printf("TestKeyToStringConversions done\n")
+}
+
 func (s *BtreeSuite) TestBtreeInserts(c *C) {
 	chunks := NewMemChunkService()
 	ds := NewLeafDirService(chunks)

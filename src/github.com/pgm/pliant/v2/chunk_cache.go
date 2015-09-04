@@ -186,10 +186,12 @@ func (c *filesystemCacheDB) Get(key *Key) *cacheEntry {
 }
 
 func (c *filesystemCacheDB) Dump() {
+	fmt.Printf("-------------\n")
 	fmt.Printf("Dumping cache\n")
 	for k, v := range c.entries {
 		fmt.Printf("  %s -> %s\n", k, v)
 	}
+	fmt.Printf("-------------\n")
 }
 
 func (c *filesystemCacheDB) MakeFSResource(resource Resource) (*FilesystemResource, error) {

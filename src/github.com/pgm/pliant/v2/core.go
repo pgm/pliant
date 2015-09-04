@@ -5,12 +5,22 @@ import (
 	"encoding/base64"
 	"io"
 	"strings"
+	"fmt"
 )
 
 type Key [32]byte
 
-var EMPTY_DIR_KEY_ Key = ([32]byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1})
+var EMPTY_DIR_KEY_ Key = ([32]byte{1, 1, 1, 1,
+		1, 1, 1, 1,
+		1, 1, 1, 1,
+		1, 1, 1, 1,
+		1, 1, 1, 1,
+		1, 1, 1, 1,
+		1, 1, 1, 1,
+		1, 1, 1, 1})
 var EMPTY_DIR_KEY *Key = &EMPTY_DIR_KEY_
+
+const KEY_STR_LEN = 44
 
 //func (k Key) String() string {
 //	return (&k).String()
@@ -20,9 +30,10 @@ func (k Key) String() string {
 	b := bytes.NewBuffer(make([]byte, 0, 100))
 	e := base64.NewEncoder(base64.StdEncoding, b)
 	e.Write((k)[:])
+	e.Close()
 	s := string(b.Bytes())
-	if len(s) != 40 {
-		panic("invalid length")
+	if len(s) != KEY_STR_LEN {
+		panic(fmt.Sprintf("invalid length: %s", len(s)))
 	}
 	return s
 }
@@ -32,8 +43,8 @@ func (k *Key) AsBytes() []byte {
 }
 
 func NewKey(key string) *Key {
-	if len(key) != 40 {
-		panic("invalid length")
+	if len(key) != KEY_STR_LEN {
+		panic(fmt.Sprintf("invalid length: %s", len(key)))
 	}
 	e := base64.NewDecoder(base64.StdEncoding, strings.NewReader(key[:]))
 	b := bytes.NewBuffer(make([]byte, 0, 100))
