@@ -10,7 +10,10 @@ import (
 	"net/rpc"
 	//	"strconv"
 	"time"
+	"errors"
 )
+
+var NO_SUCH_KEY error = errors.New("No such key")
 
 type Config struct {
 	AccessKeyId     string
@@ -45,7 +48,11 @@ func (t *Master) Set(args *SetArgs, reply *bool) error {
 }
 
 func (t *Master) Get(label *string, reply *v2.Key) error {
-	*reply = *t.roots.Get(*label)
+	replyPtr := t.roots.Get(*label)
+	if replyPtr == nil {
+		return NO_SUCH_KEY;
+	}
+	*reply = *replyPtr
 
 	return nil
 }
@@ -143,6 +150,9 @@ func (t *TagService) Put(name string, key *v2.Key) {
 func (t *TagService) Get(name string) *v2.Key {
 	key, err := t.client.Get(name)
 	if err != nil {
+		if err.Error() == NO_SUCH_KEY.Error() {
+			return nil;
+		}
 		panic(err.Error())
 	}
 	return key
