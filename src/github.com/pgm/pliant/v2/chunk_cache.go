@@ -8,6 +8,10 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"github.com/boltdb/bolt"
+	"time"
+	"github.com/golang/protobuf/proto"
+	"errors"
 )
 
 type sourceEnum int
@@ -119,10 +123,10 @@ func NewMemCacheDB() *memcacheDB {
 
 type filesystemCacheDB struct {
 	root string
-	//	db *bolt.DB;
-	lock    sync.Mutex
-	entries map[Key]*cacheEntry
+	db *bolt.DB;
+	lock    sync.Mutex // TODO: Can this be eliminated now that we're no longer using a map
 }
+
 
 func (f *filesystemCacheDB) AllocateTempFilename() string {
 	fp, err := ioutil.TempFile(f.root, "temp")
@@ -143,7 +147,21 @@ func NewFilesystemCacheDB(root string) (*filesystemCacheDB, error) {
 		os.MkdirAll(root, 0770)
 	}
 
-	return &filesystemCacheDB{root: root, entries: make(map[Key]*cacheEntry)}, nil
+	fmt.Printf("opened %s\n", root+"/my.db")
+	db, err := bolt.Open(root+"/my.db", 0600, &bolt.Options{Timeout: 10 * time.Second})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists(KEY_TO_FILENAME)
+		return err
+	})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	return &filesystemCacheDB{root: root, db: db}, nil
 }
 
 type FilesystemResource struct {
@@ -178,19 +196,84 @@ func (r *FilesystemResource) GetReader() io.Reader {
 	return f
 }
 
+var KEY_TO_FILENAME  []byte = []byte("keyToFilename")
+
+func unpackCacheEntry(src []byte, entry *cacheEntry) {
+	//fmt.Printf("unpackCacheEntry(%s, entry)\n", src);
+	dest := &CacheEntry{}
+	err := proto.Unmarshal(src, dest)
+	if err != nil {
+		panic(fmt.Sprintf("Couldn't unmarshal cacheentry object: %s", err))
+	}
+	entry.source = sourceEnum(dest.GetSource())
+	entry.resource, err = NewFileResource(dest.GetFilename())
+	if err != nil {
+		panic(err.Error())
+	}
+}
+
+func packCacheEntry(entry *cacheEntry) [] byte {
+	filename := entry.resource.(*FilesystemResource).filename
+	source := CacheEntry_SourceType(entry.source)
+	data, err := proto.Marshal(&CacheEntry{Filename: proto.String(filename), Source: &source})
+	if err != nil {
+		panic(fmt.Sprintf("Couldn't marshal cacheentry object: %s", err))
+	}
+	return data
+}
+
+var NO_SUCH_KEY = errors.New("No such key")
+
 func (c *filesystemCacheDB) Get(key *Key) *cacheEntry {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	return c.entries[*key]
+	var entry cacheEntry
+
+	err := c.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(KEY_TO_FILENAME)
+		entryBuffer := b.Get(key.AsBytes())
+		if entryBuffer == nil {
+//			panic(fmt.Sprintf("Key %s did not exist in %s", key, c.db))
+			return NO_SUCH_KEY
+		} else {
+			fmt.Printf("len(entryBuffer)=%d\n", len(entryBuffer))
+		}
+		unpackCacheEntry(entryBuffer, &entry)
+
+		return nil
+	})
+
+	if err == NO_SUCH_KEY {
+		return nil
+	} else if err != nil {
+		panic(err.Error())
+	}
+
+	return &entry
 }
 
 func (c *filesystemCacheDB) Dump() {
 	fmt.Printf("-------------\n")
 	fmt.Printf("Dumping cache\n")
-	for k, v := range c.entries {
-		fmt.Printf("  %s -> %s\n", k, v)
+
+	err := c.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(KEY_TO_FILENAME)
+		b.ForEach(func(k, v []byte) error {
+			key := KeyFromBytes(k)
+			var entry cacheEntry;
+			unpackCacheEntry(v, &entry)
+			fmt.Printf("  %s -> %s\n", key, entry)
+			return nil
+		})
+
+		return nil
+	})
+
+	if err != nil {
+		panic(err.Error())
 	}
+
 	fmt.Printf("-------------\n")
 }
 
@@ -239,5 +322,11 @@ func (c *filesystemCacheDB) Put(key *Key, entry *cacheEntry) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.entries[*key] = fsentry
+	c.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(KEY_TO_FILENAME)
+		fsentryBuffer := packCacheEntry(fsentry)
+		fmt.Printf("Put(%s, len(entry)=%d (%s)\n", key, len(fsentryBuffer), c.db)
+		err := b.Put(key.AsBytes(), fsentryBuffer)
+		return err
+	})
 }

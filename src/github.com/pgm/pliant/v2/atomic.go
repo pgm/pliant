@@ -159,15 +159,98 @@ type AtomicState struct {
 	cache      *filesystemCacheDB
 	chunks     *ChunkCache
 	tags       TagService
+
+	// list of leases which need to be periodically renewed
+	leases     []string
 }
 
 func NewAtomicState(dirService DirectoryService, chunks *ChunkCache, cache *filesystemCacheDB, tags TagService) *AtomicState {
-	return &AtomicState{dirService: dirService, roots: make(map[string]*FileMetadata), cache: cache, chunks: chunks, tags: tags}
+	return &AtomicState{dirService: dirService, roots: make(map[string]*FileMetadata), cache: cache, chunks: chunks, tags: tags, leases: make([]string, 0, 10)}
 }
+
+var LEASE_TIMEOUT uint64 = 60*60*24
 
 type typedKey struct {
 	key   *Key
 	isDir bool
+}
+
+func walk(roots []*Key, readDir func(*Key) *LeafDir, emitEdge func(*Key, *Key) bool) map[Key]bool {
+	seen := make(map[Key]bool)
+
+	for len(roots) > 0 {
+		nextKey := roots[len(roots)-1]
+		roots = roots[:len(roots)-1]
+
+		var leaf *LeafDir
+		leaf = readDir(nextKey)
+
+		it := leaf.Iterate()
+		for it.HasNext() {
+			_, meta := it.Next()
+
+			key := KeyFromBytes(meta.GetKey())
+			shouldExplore := emitEdge(nextKey, key)
+
+			if meta.GetIsDir() {
+				if _, seenKey := seen[*key] ; !seenKey {
+					if shouldExplore {
+						roots = append(roots, key)
+						seen[*key] = true
+					}
+				}
+			} else {
+				seen[*key] = true
+			}
+		}
+	}
+
+	return seen
+}
+
+// roots are assumed to be dir pointers
+func walkReachable(cache *filesystemCacheDB, roots []*Key) ([]*Key, []*FileMetadata) {
+	panic("unimp")
+//
+//	seen := walk()
+//
+//	it := cache.Iterate()
+//	if !this in seen && cache.get(this).source == LOCAL {
+//		drop
+//	}
+}
+
+func (self *AtomicState) GC() {
+/*
+	// find referenced remote keys
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
+	roots := make([]*Key, 0, len(self.roots))
+	for _, meta := range(self.roots) {
+		roots = append(roots, KeyFromBytes(meta.GetKey()))
+	}
+
+	unreachableKeys, referencedRemoteObjs := walkReachable(self.cache, roots)
+
+	// create dummy leaf with all referenced remote keys
+	refKey := CreateAnonymousRefLeaf(self.chunks.remote, referencedRemoteObjs)
+
+	// create a new single lease
+	newLease := self.tags.AddLease(LEASE_TIMEOUT, refKey)
+
+	// revoke existing leases
+	for _, leaseId := range(self.leases) {
+		self.tags.RevokeLease(leaseId)
+	}
+
+	self.leases = [...]string{newLease};
+
+	self.cache.delete(unreachableKeys)
+
+	self.cache.ExpireRemoteObjects()
+*/
+	panic("unimp")
 }
 
 func (self *AtomicState) Pull(tag string, lease *Lease) *Key {
@@ -397,20 +480,6 @@ func (self *AtomicState) Put(destination *Path, resource Resource) (*Key, error)
 	key := computeContentKey(buffer)
 
 	self.cache.Put(key, &cacheEntry{source: LOCAL, resource: resource})
-	//
-	//	parentPath, filename := destination.Split();
-	//
-	//	parentDir, error := self.getDirFromPath(parentPath);
-	//	if error != nil {
-	//		return nil, error;
-	//	}
-	//
-	//	metadata := &FileMetadata{Length: proto.Int64(int64(len(buffer))),
-	//		Key: key[:],
-	//		IsDir: proto.Bool(false),
-	//		CreationTime: proto.Int64(1)}
-	//
-	//	return parentDir.Put(filename, metadata), nil;
 
 	err := self.Link(key, destination, false)
 	if err != nil {

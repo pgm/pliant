@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"sort"
+	"strconv"
 )
 
 var EMPTY_DIR = Leaf{entries: make([]*LeafEntry, 0, 10)}
@@ -201,11 +202,15 @@ func (d *LeafDir) readLeaf(key *Key) *Leaf {
 	}
 }
 
-func (d *LeafDir) writeLeaf(leaf *Leaf) *Key {
+func writeLeaf(chunks ChunkService, leaf *Leaf) *Key {
 	buffer := PackLeaf(leaf)
 	newLeafKey := computeContentKey(buffer)
-	d.chunks.Put(newLeafKey, NewMemResource(buffer))
+	chunks.Put(newLeafKey, NewMemResource(buffer))
 	return newLeafKey
+}
+
+func (d *LeafDir) writeLeaf(leaf *Leaf) *Key {
+	return writeLeaf(d.chunks, leaf)
 }
 
 func computeContentKey(buffer []byte) *Key {
@@ -216,6 +221,16 @@ func computeContentKey(buffer []byte) *Key {
 func (d *LeafDir) Get(name string) *FileMetadata {
 	leaf := d.readLeaf(d.key)
 	return leaf.get(name)
+}
+
+// create a leaf which only contains the specified metadata and the filenames do not matter
+// this is used to create a set of references which are used in the transient refs.
+func CreateAnonymousRefLeaf(chunks ChunkService, metadatas []*FileMetadata) *Key {
+	leaf := &EMPTY_DIR
+	for i, meta := range(metadatas) {
+		leaf = leaf.insert(&LeafEntry{name: strconv.Itoa(i), metadata: meta})
+	}
+	return writeLeaf(chunks, leaf)
 }
 
 func (d *LeafDir) Put(name string, metadata *FileMetadata) *Key {

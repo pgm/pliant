@@ -67,3 +67,11 @@ message Request {
     optional LinkReq Link = 5;
     optional UnlinkReq Unlink = 6;
 }
+
+
+message CacheEntry {
+    enum SourceType { INVALID = 0 ; LOCAL = 2; REMOTE = 1 ; }
+    required string Filename = 1;
+    required SourceType Source = 2;
+}
+

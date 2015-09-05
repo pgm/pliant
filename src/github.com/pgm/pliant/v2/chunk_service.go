@@ -39,7 +39,7 @@ func (self *MemChunkService) PrintDebug() {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
-	log.Printf("%d chunks in %p\n", len(self.chunks), self)
+	log.Printf("MemChunkService.PrintDebug %d chunks in %p\n", len(self.chunks), self)
 	for id, _ := range self.chunks {
 		log.Printf("chunk %s\n", id.String())
 	}

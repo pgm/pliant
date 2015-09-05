@@ -8,7 +8,8 @@ import (
 	"os"
 )
 
-type AtomicSuite struct{}
+type AtomicSuite struct{
+}
 
 var _ = Suite(&AtomicSuite{})
 var _ = fmt.Sprintf("hello!")
@@ -23,7 +24,7 @@ func fetchNamesFromIter(it Iterator) []string {
 }
 
 func (*AtomicSuite) TestChunkCache(c *C) {
-	cache, _ := NewFilesystemCacheDB("cache")
+	cache, _ := NewFilesystemCacheDB(c.MkDir())
 	chunks := NewChunkCache(NewMemChunkService(), cache)
 
 	aRes := NewMemResource([]byte("A"))
@@ -39,7 +40,7 @@ func (*AtomicSuite) TestChunkCache(c *C) {
 }
 
 func (s *AtomicSuite) TestAtomicDirOps(c *C) {
-	cache, _ := NewFilesystemCacheDB("cache")
+	cache, _ := NewFilesystemCacheDB(c.MkDir())
 	chunks := NewChunkCache(NewMemChunkService(), cache)
 	ds := NewLeafDirService(chunks)
 	tags := NewMemTagService()
@@ -83,7 +84,7 @@ func (s *AtomicSuite) TestAtomicDirOps(c *C) {
 }
 
 func (s *AtomicSuite) TestAtomicFileOps(c *C) {
-	cache, _ := NewFilesystemCacheDB("cache")
+	cache, _ := NewFilesystemCacheDB(c.MkDir())
 	chunks := NewChunkCache(NewMemChunkService(), cache)
 	ds := NewLeafDirService(chunks)
 	tags := NewMemTagService()
@@ -114,16 +115,17 @@ func (s *AtomicSuite) TestAtomicFileOps(c *C) {
 }
 
 func (s *AtomicSuite) TestPush(c *C) {
+	fmt.Printf("TestPush start\n")
 	remoteChunks := NewMemChunkService()
 	tags := NewMemTagService()
 
-	cache1, _ := NewFilesystemCacheDB("cache1")
+	cache1, _ := NewFilesystemCacheDB(c.MkDir())
 	chunks1 := NewChunkCache(remoteChunks, cache1)
 	ds1 := NewLeafDirService(chunks1)
 	as1 := NewAtomicState(ds1, chunks1, cache1, tags)
 	ac1 := &AtomicClient{atomic: as1}
 
-	cache2, _ := NewFilesystemCacheDB("cache2")
+	cache2, _ := NewFilesystemCacheDB(c.MkDir())
 	chunks2 := NewChunkCache(remoteChunks, cache2)
 	ds2 := NewLeafDirService(chunks2)
 	as2 := NewAtomicState(ds2, chunks2, cache2, tags)
