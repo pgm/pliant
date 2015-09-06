@@ -25,15 +25,27 @@ type Roots struct {
 	// all anonymous roots with a time-to-live.  After which they expire
 	leases Leases
 
+	log *Log
+
 	// the GC current state
 	coloring *Coloring
 }
 
-func NewRoots() *Roots {
-	l := Leases(make([]KeyLease, 0))
+func NewRoots(logName string) *Roots {
+	leases := Leases(make([]KeyLease, 0))
+	labels := make(map[string]*v2.Key)
+
+	log := OpenLog(logName, func(label string, key *v2.Key){
+			labels[label] = key
+		},
+		func(key *v2.Key, timestamp uint64){
+			leases = append(leases, KeyLease{timestamp: timestamp, key: key})
+		} )
+
 	roots := &Roots{
-		labels:   make(map[string]*v2.Key),
-		leases:   l,
+		log : log,
+		labels:   labels,
+		leases:   leases,
 		coloring: &Coloring{gray: make(map[v2.Key]int), black: make(map[v2.Key]int)}}
 	heap.Init(&roots.leases)
 	fmt.Printf("%s", roots)
@@ -50,6 +62,8 @@ func (r *Roots) Set(label string, key *v2.Key) {
 		r.labels[label] = key
 		r.coloring.mark(key, GRAY)
 	}
+
+	r.log.appendLabel(label, key)
 }
 
 func (r *Roots) Get(label string) *v2.Key {
@@ -65,6 +79,8 @@ func (r *Roots) AddLease(expiry uint64, key *v2.Key) {
 
 	heap.Push(&r.leases, KeyLease{expiry, key})
 	r.coloring.mark(key, GRAY)
+
+	r.log.appendLease(key, expiry)
 }
 
 // Find all leases which have expired, remove them and return the list of the removed
@@ -259,3 +275,6 @@ func (coloring *Coloring) freeWhiteKeys(chunks v2.IterableChunkService, freeCall
 		}
 	}
 }
+
+//////////////////////////
+

@@ -22,6 +22,7 @@ type Config struct {
 	Bucket          string
 	MasterPort      int
 	Prefix          string
+	PersistPath     string
 }
 
 type Master struct {
@@ -83,7 +84,7 @@ func (t *Master) GetConfig(nothing *string, reply *Config) error {
 }
 
 func StartServer(config *Config) (net.Listener, error) {
-	ac := &Master{config: config, roots: NewRoots()}
+	ac := &Master{config: config, roots: NewRoots(config.PersistPath)}
 	rpc.Register(ac)
 	rpc.HandleHTTP()
 	l, e := net.Listen("tcp", fmt.Sprintf("localhost:%d", config.MasterPort))

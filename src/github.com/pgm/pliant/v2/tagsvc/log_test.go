@@ -6,35 +6,21 @@ import (
 	"github.com/pgm/pliant/v2"
 	. "gopkg.in/check.v1"
 	"testing"
-	"os"
-	"io/ioutil"
 )
 
-type TagSvcSuite struct{
-	tempfile string
-}
+type TagSvcSuite struct{}
 
 var _ = Suite(&TagSvcSuite{})
 var _ = fmt.Sprintf("hello!")
 
 func Test(t *testing.T) { TestingT(t) }
 
-func (s *TagSvcSuite) TearDownTest(c *C) {
-	if s.tempfile != "" {
-		os.Remove(s.tempfile)
-		s.tempfile = ""
-	}
-}
-
 func (s *TagSvcSuite) TestLeases(c *C) {
-	tempfp, _ := ioutil.TempFile("", "tagsvc_test")
-	s.tempfile = tempfp.Name()
-
 	key1 := v2.Key{1}
 	key2 := v2.Key{2}
 	key3 := v2.Key{3}
 
-	root := NewRoots(s.tempfile)
+	root := NewRoots()
 	c.Assert(len(root.GetRoots()), Equals, 0)
 	root.AddLease(100, &key1)
 	c.Assert(len(root.GetRoots()), Equals, 1)
@@ -53,14 +39,11 @@ func (s *TagSvcSuite) TestLeases(c *C) {
 }
 
 func (s *TagSvcSuite) TestSetRoot(c *C) {
-	tempfp, _ := ioutil.TempFile("", "tagsvc_test")
-	s.tempfile = tempfp.Name()
-
 	key1 := v2.Key{1}
 	key2 := v2.Key{2}
 	key3 := v2.Key{3}
 
-	root := NewRoots(s.tempfile)
+	root := NewRoots()
 	root.Set("1", &key1)
 	root.Set("2", &key2)
 	c.Assert(len(root.GetRoots()), Equals, 2)
@@ -73,14 +56,11 @@ func (s *TagSvcSuite) TestSetRoot(c *C) {
 }
 
 func (s *TagSvcSuite) TestSimpleGC(c *C) {
-	tempfp, _ := ioutil.TempFile("", "tagsvc_test")
-	s.tempfile = tempfp.Name()
-
 	fileKey1 := v2.Key{10}
 	fileKey2 := v2.Key{11}
 	fileKey3 := v2.Key{12}
 
-	root := NewRoots(s.tempfile)
+	root := NewRoots()
 	count := 0
 	countPtr := &count
 	chunks := v2.NewMemChunkService()
@@ -102,17 +82,13 @@ func (s *TagSvcSuite) TestSimpleGC(c *C) {
 }
 
 func (s *TagSvcSuite) TestClientServer(c *C) {
-	tempfp, _ := ioutil.TempFile("", "tagsvc_test")
-	s.tempfile = tempfp.Name()
-
 	config := &Config{
 		AccessKeyId:     "access",
 		SecretAccessKey: "secret",
 		Endpoint:        "http://endpoint",
 		Bucket:          "bucket",
 		MasterPort:      0,
-		Prefix:          "prefix",
-		PersistPath: s.tempfile}
+		Prefix:          "prefix"}
 
 	l, err := StartServer(config)
 	c.Assert(err, IsNil)
