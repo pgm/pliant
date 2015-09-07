@@ -6,6 +6,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"sort"
 	"sync"
+	"github.com/boltdb/bolt"
+	"bytes"
 )
 
 var NO_SUCH_PATH = errors.New("No such path")
@@ -153,7 +155,7 @@ func (ac *AtomicClient) Unlink(path string, result *string) error {
 type AtomicState struct {
 	lock sync.Mutex // protects access to roots
 
-	roots map[string]*FileMetadata
+	roots RootMap
 
 	dirService DirectoryService
 	cache      *filesystemCacheDB
@@ -164,8 +166,102 @@ type AtomicState struct {
 	leases     []string
 }
 
-func NewAtomicState(dirService DirectoryService, chunks *ChunkCache, cache *filesystemCacheDB, tags TagService) *AtomicState {
-	return &AtomicState{dirService: dirService, roots: make(map[string]*FileMetadata), cache: cache, chunks: chunks, tags: tags, leases: make([]string, 0, 10)}
+type RootMap interface {
+	Get(name string) (*FileMetadata, bool)
+	Set(name string, value *FileMetadata)
+	ForEach(func(name string, x *FileMetadata))
+	//map[string]*FileMetadata
+}
+
+type DbRootMap struct {
+	db *bolt.DB
+}
+
+func NewDbRootMap(db *bolt.DB) RootMap {
+	return &DbRootMap{db: db}
+}
+
+func (self *DbRootMap) Get(name string) (*FileMetadata, bool) {
+	var nilResult *FileMetadata = nil
+	var result **FileMetadata = &nilResult
+	err := self.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(ROOT_TO_KEY)
+		buffer := b.Get([]byte(name))
+		fmt.Printf("got %s, len(buffer) = %d\n", name, len(buffer))
+		if buffer != nil {
+			*result = UnpackFileMetadata(bytes.NewBuffer(buffer))
+		}
+		return nil
+	})
+	if err != nil {
+		panic(err.Error())
+	}
+	return *result, (*result != nil)
+}
+
+func (self *DbRootMap) Set(name string, value *FileMetadata) {
+	err := self.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(ROOT_TO_KEY)
+		if value == nil {
+			b.Delete([]byte(name))
+		} else {
+			buffer := PackFileMetadata(value)
+			fmt.Printf("setting %s to len(buffer)=%d\n", name, len(buffer))
+			b.Put([]byte(name), buffer)
+		}
+		return nil
+	})
+
+	if err != nil {
+		panic(err.Error())
+	}
+}
+
+func (self *DbRootMap) ForEach(callback func(name string, x *FileMetadata)) {
+	err := self.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(ROOT_TO_KEY)
+		b.ForEach(func(k, v []byte) error {
+			metadata := UnpackFileMetadata(bytes.NewBuffer(v))
+			callback(string(k), metadata)
+			return nil
+		})
+		return nil
+	})
+	if err != nil {
+		panic(err.Error())
+	}
+}
+
+
+type MemRootMap struct {
+	roots map[string]*FileMetadata
+}
+
+func (self *MemRootMap) Get(name string) (*FileMetadata, bool) {
+	a, b := self.roots[name]
+	return a, b
+}
+
+func (self *MemRootMap) Set(name string, value *FileMetadata) {
+	if value == nil {
+		delete(self.roots, name)
+	} else {
+		self.roots[name] = value
+	}
+}
+
+func (self *MemRootMap) ForEach(callback func(name string, x *FileMetadata)) {
+	for k, v := range(self.roots) {
+		callback(k, v)
+	}
+}
+
+func NewMemRootMap() RootMap {
+	return &MemRootMap{roots: make(map[string]*FileMetadata)}
+}
+
+func NewAtomicState(dirService DirectoryService, chunks *ChunkCache, cache *filesystemCacheDB, tags TagService, roots RootMap) *AtomicState {
+	return &AtomicState{dirService: dirService, roots: roots, cache: cache, chunks: chunks, tags: tags, leases: make([]string, 0, 10)}
 }
 
 var LEASE_TIMEOUT uint64 = 60*60*24
@@ -260,13 +356,13 @@ func (self *AtomicState) Pull(tag string, lease *Lease) *Key {
 }
 
 func (self *AtomicState) DumpDebug() {
-	self.lock.Lock()
-	defer self.lock.Unlock()
-
-	fmt.Printf("Atomic state has %d entries\n", len(self.roots))
-	for k, v := range self.roots {
-		fmt.Printf("  %s -> %s\n", k, KeyFromBytes(v.GetKey()).String())
-	}
+//	self.lock.Lock()
+//	defer self.lock.Unlock()
+//
+//	fmt.Printf("Atomic state has %d entries\n", len(self.roots))
+//	for k, v := range self.roots {
+//		fmt.Printf("  %s -> %s\n", k, KeyFromBytes(v.GetKey()).String())
+//	}
 }
 
 func (self *AtomicState) Push(key *Key, tag string, lease *Lease) error {
@@ -334,12 +430,13 @@ func (self *AtomicState) CreateResourceForLocalFile(localFile string) (Resource,
 func (self *AtomicState) unsafeGetDirsFromPath(path *Path) ([]Directory, error) {
 	// otherwise we need to descend in until we find the parent
 	parentDirs := make([]Directory, 0, len(path.path))
-	dirMetadata, ok := self.roots[path.path[0]]
+	dirMetadata, ok := self.roots.Get(path.path[0])
+	fmt.Printf("Get(%s) -> %s, %s\n", dirMetadata, ok)
 	if !ok {
-		fmt.Printf("Root keys:\n")
-		for k, v := range self.roots {
-			fmt.Printf("  %s: %s\n", k, v)
-		}
+//		fmt.Printf("Root keys:\n")
+//		for k, v := range self.roots {
+//			fmt.Printf("  %s: %s\n", k, v)
+//		}
 		return nil, NO_SUCH_PATH
 	}
 	i := 0
@@ -420,16 +517,13 @@ func (self *AtomicState) GetDirectoryIterator(path *Path) (Iterator, error) {
 	defer self.lock.Unlock()
 
 	if len(path.path) == 0 {
-
 		// make a snapshot of the directory and return an iterator over it
-		names := make([]string, len(self.roots))
-		metadatas := make([]*FileMetadata, len(self.roots))
-		i := 0
-		for k, v := range self.roots {
-			names[i] = k
-			metadatas[i] = v
-			i += 1
-		}
+		names := make([]string, 0, 20)
+		metadatas := make([]*FileMetadata, 0, 20)
+		self.roots.ForEach(func(k string, v *FileMetadata) {
+			names = append(names, k)
+			metadatas = append(metadatas, v)
+		})
 
 		d := NewMemDirIterator(names, metadatas)
 		return d, nil
@@ -450,7 +544,7 @@ func (self *AtomicState) GetMetadata(path *Path) (*FileMetadata, error) {
 
 	if parentPath.IsRoot() {
 
-		meta, ok := self.roots[path.path[0]]
+		meta, ok := self.roots.Get(path.path[0])
 		if !ok {
 			return nil, errors.New("No such path")
 		}
@@ -518,7 +612,7 @@ func (self *AtomicState) unsafeLink(key *Key, path *Path, isDir bool) error {
 
 	newParentMetadata := &FileMetadata{Length: proto.Int64(0), Key: newParentKey.AsBytes(), IsDir: proto.Bool(true)}
 
-	self.roots[path.path[0]] = newParentMetadata
+	self.roots.Set(path.path[0], newParentMetadata)
 	return nil
 }
 
@@ -533,7 +627,7 @@ func (self *AtomicState) Unlink(path *Path) error {
 	defer self.lock.Unlock()
 
 	if len(path.path) == 1 {
-		delete(self.roots, path.path[0])
+		self.roots.Set(path.path[0], nil)
 	} else {
 		parentPath, filename := path.Split()
 

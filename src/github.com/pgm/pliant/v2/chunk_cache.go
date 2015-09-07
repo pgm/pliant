@@ -137,30 +137,29 @@ func (f *filesystemCacheDB) AllocateTempFilename() string {
 	return fp.Name()
 }
 
-func NewFilesystemCacheDB(root string) (*filesystemCacheDB, error) {
-	//	db, err := bolt.Open("my.db", 0600, nil)
-	//	if err != nil {
-	//		return nil, err
-	//	}
-	_, err := os.Stat(root)
-	if os.IsNotExist(err) {
-		os.MkdirAll(root, 0770)
-	}
-
-	fmt.Printf("opened %s\n", root+"/my.db")
-	db, err := bolt.Open(root+"/my.db", 0600, &bolt.Options{Timeout: 10 * time.Second})
+func InitDb(filename string) (*bolt.DB, error) {
+	db, err := bolt.Open(filename, 0600, &bolt.Options{Timeout: 10 * time.Second})
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(KEY_TO_FILENAME)
+		if err != nil {
+			return err
+		}
+		_, err = tx.CreateBucketIfNotExists(ROOT_TO_KEY)
 		return err
 	})
+
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
+	return db, nil
+}
+
+func NewFilesystemCacheDB(root string, db *bolt.DB) (*filesystemCacheDB, error) {
 	return &filesystemCacheDB{root: root, db: db}, nil
 }
 
@@ -197,6 +196,7 @@ func (r *FilesystemResource) GetReader() io.Reader {
 }
 
 var KEY_TO_FILENAME  []byte = []byte("keyToFilename")
+var ROOT_TO_KEY []byte = []byte("rootToKey")
 
 func unpackCacheEntry(src []byte, entry *cacheEntry) {
 	//fmt.Printf("unpackCacheEntry(%s, entry)\n", src);

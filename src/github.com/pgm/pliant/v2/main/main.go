@@ -8,6 +8,8 @@ import (
 	"github.com/pgm/pliant/v2/tagsvc"
 	"net/rpc"
 	"os"
+	"log"
+	gcfg "gopkg.in/gcfg.v1"
 )
 
 const SERVER_BINDING string = "pliantctl"
@@ -67,28 +69,68 @@ func main() {
 					os.Remove(SERVER_BINDING)
 				}
 
-				cache, _ := v2.NewFilesystemCacheDB("cache")
+				root := "cache"
+				_, err = os.Stat(root)
+				if os.IsNotExist(err) {
+					os.MkdirAll(root, 0770)
+				}
+
+				db, err := v2.InitDb(root+"/db.bolt")
+				if err != nil {
+					panic(err.Error())
+				}
+
+				cache, _ := v2.NewFilesystemCacheDB(root, db)
 				tags := tagsvc.NewTagService(tagsvcClient)
-				chunkService := s3.NewS3ChunkService(config.Endpoint, config.Bucket, config.Prefix, cache.AllocateTempFilename)
+				chunkService := s3.NewS3ChunkService(config.AccessKeyId, config.SecretAccessKey, config.Endpoint, config.Bucket, config.Prefix, cache.AllocateTempFilename)
 				chunks := v2.NewChunkCache(chunkService, cache)
 				ds := v2.NewLeafDirService(chunks)
-				as := v2.NewAtomicState(ds, chunks, cache, tags)
+				as := v2.NewAtomicState(ds, chunks, cache, tags, v2.NewDbRootMap(db))
 				panicIfError(v2.StartServer(SERVER_BINDING, as))
 			},
 		},
 		{
-			Name:  "master",
-			Usage: "starts master service",
+			Name:  "root",
+			Usage: "starts root service",
 			Action: func(c *cli.Context) {
-				accessKeyId := os.Getenv("AWS_ACCESS_KEY_ID")
-				secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-				endpoint := "s3.amazonaws.com"
-				bucket := ""
-				prefix := ""
-				port := 5555
+				cfg := struct {
+						S3 struct {
+							AccessKeyId string
+							SecretAccessKey string
+							Endpoint string
+							Bucket string
+							Prefix string
+						}
+						Settings struct {
+							Port int
+							PersistPath string
+						}
+					}{}
 
-				config := &tagsvc.Config{AccessKeyId: accessKeyId, SecretAccessKey: secretAccessKey, Endpoint: endpoint, Bucket: bucket, Prefix: prefix, MasterPort: port}
-				tagsvc.StartServer(config)
+				filename := "config.ini"
+				fd, err := os.Open(filename)
+				if err != nil {
+					log.Fatalf("Could not open %s", filename)
+				}
+				err = gcfg.ReadInto(&cfg, fd)
+				if err != nil {
+					log.Fatalf("Failed to parse %s: %s", filename, err)
+				}
+				fd.Close()
+
+				config := &tagsvc.Config{AccessKeyId: cfg.S3.AccessKeyId,
+					SecretAccessKey: cfg.S3.SecretAccessKey,
+					Endpoint: cfg.S3.Endpoint,
+					Bucket: cfg.S3.Bucket,
+					Prefix: cfg.S3.Prefix,
+					MasterPort: cfg.Settings.Port,
+					PersistPath: cfg.Settings.PersistPath}
+				_, err = tagsvc.StartServer(config)
+				if err != nil {
+					log.Fatalf("StartServer failed %s", err)
+				}
+				log.Printf("StartServer completed")
+				select{}
 			},
 		},
 		{

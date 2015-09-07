@@ -29,16 +29,11 @@ type S3ChunkService struct {
 	MaxFetchKeys int64
 }
 
-func NewS3ChunkService(endpoint string, bucket string, prefix string, getDestFn AllocTempDestFn) *S3ChunkService {
-	keys, err := s3gof3r.EnvKeys()
-	if err != nil {
-		panic(err.Error())
-	}
-
+func NewS3ChunkService(AccessKey string, SecretKey string, endpoint string, bucket string, prefix string, getDestFn AllocTempDestFn) *S3ChunkService {
 	p := &S3ChunkService{}
 	p.EndPoint = endpoint
 	p.Bucket = bucket
-	p.Keys = keys
+	p.Keys = s3gof3r.Keys{AccessKey: AccessKey, SecretKey: SecretKey}
 	p.GetDestFn = getDestFn
 	p.Prefix = prefix
 	p.MaxFetchKeys = 2

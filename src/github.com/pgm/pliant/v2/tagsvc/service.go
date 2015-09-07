@@ -68,8 +68,9 @@ func (t *Master) AddLease(args *AddLeaseArgs, reply *bool) error {
 }
 
 func (t *Master) GC(label *string, reply *v2.Key) error {
-	cache, _ := v2.NewFilesystemCacheDB("cache")
-	chunkService := s3.NewS3ChunkService(t.config.Endpoint, t.config.Bucket, t.config.Prefix, cache.AllocateTempFilename)
+	panic("todo: update code to pass in bolt db ref")
+	cache, _ := v2.NewFilesystemCacheDB("cache", nil)
+	chunkService := s3.NewS3ChunkService(t.config.AccessKeyId, t.config.SecretAccessKey, t.config.Endpoint, t.config.Bucket, t.config.Prefix, cache.AllocateTempFilename)
 	dirService := v2.NewLeafDirService(chunkService)
 	t.roots.GC(dirService, chunkService, chunkService.Delete)
 
@@ -92,7 +93,15 @@ func StartServer(config *Config) (net.Listener, error) {
 		log.Fatal("listen error:", e)
 		return nil, e
 	}
-	go http.Serve(l, nil)
+	go (func() {
+	log.Printf("Serve starting")
+
+	err := http.Serve(l, nil)
+		if err != nil {
+			log.Fatalf("serve failed %s", err)
+		}
+	})()
+
 	return l, nil
 }
 
