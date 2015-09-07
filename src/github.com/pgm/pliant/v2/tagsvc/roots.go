@@ -100,19 +100,28 @@ func (r *Roots) Expire(oldestToKeep uint64) []*v2.Key {
 }
 
 // return a snapshot of all root keeps to be used for reachability analysis
-func (r *Roots) GetRoots() []*v2.Key {
+func (r *Roots) GetNamedRoots() []NameAndKey {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	roots := make([]*v2.Key, 0, len(r.leases)+len(r.labels))
+	roots := make([]NameAndKey, 0, len(r.leases)+len(r.labels))
 	l := r.leases
 	for i := 0; i < len(l); i++ {
-		roots = append(roots, r.leases[i].key)
+		roots = append(roots, NameAndKey{"", r.leases[i].key})
 	}
-	for _, key := range r.labels {
-		roots = append(roots, key)
+	for name, key := range r.labels {
+		roots = append(roots, NameAndKey{name, key})
 	}
 	return roots
+}
+
+func (r *Roots) GetRoots() []*v2.Key {
+	namedRoots := r.GetNamedRoots()
+	result := make([]*v2.Key, len(namedRoots))
+	for i, nr := range(namedRoots) {
+		result[i] = nr.Key
+	}
+	return result
 }
 
 func (r *Roots) GC(dirService v2.DirectoryService, chunks v2.IterableChunkService, freeCallback FreeCallback) {

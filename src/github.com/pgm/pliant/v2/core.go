@@ -105,6 +105,7 @@ type IterableChunkService interface {
 type TagService interface {
 	Put(name string, key *Key)
 	Get(name string) *Key
+	ForEach(callback func(name string, key *Key))
 }
 
 type Lease struct {

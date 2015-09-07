@@ -29,6 +29,8 @@ type Atomic interface {
 
 	Pull(tag string, lease *Lease) *Key
 	Push(key *Key, new_tag string, lease *Lease) error
+
+	ForEachRoot(prefix string, callback func(name string, key *Key)) error
 }
 
 // A wrapper around Atomic which uses simple types for its parameters.
@@ -63,6 +65,24 @@ func (ac *AtomicClient) Pull(args *PullArgs, result *string) error {
 
 	parsedPath := NewPath(args.Destination)
 	return ac.atomic.Link(key, parsedPath, true)
+}
+
+type ListRootsRecord struct {
+	Name string
+	Key *Key
+}
+
+func (ac *AtomicClient) ListRoots(prefix string, resultPtr *[]ListRootsRecord) error {
+		result := make([]ListRootsRecord, 0, 100)
+	err := ac.atomic.ForEachRoot(prefix, func(name string, key *Key){
+		result = append(result, ListRootsRecord{name, key})
+	})
+	if err != nil {
+		return err
+	}
+
+	*resultPtr = result
+	return nil
 }
 
 type ListFilesRecord struct {
@@ -510,6 +530,11 @@ func NewMemDirIterator(names []string, metadatas []*FileMetadata) Iterator {
 	d := &MemDirIterator{index: 0, names: names, metadatas: metadatas}
 	sort.Sort(d)
 	return d
+}
+
+func (self *AtomicState) ForEachRoot(prefix string, callback func(name string, key *Key)) error {
+	self.tags.ForEach(callback)
+	return nil
 }
 
 func (self *AtomicState) GetDirectoryIterator(path *Path) (Iterator, error) {

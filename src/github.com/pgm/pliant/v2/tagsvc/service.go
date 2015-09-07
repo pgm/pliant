@@ -58,6 +58,12 @@ func (t *Master) Get(label *string, reply *v2.Key) error {
 	return nil
 }
 
+func (t *Master) GetAll(ignored *string, reply *[]NameAndKey) error {
+	*reply = t.roots.GetNamedRoots()
+
+	return nil
+}
+
 func (t *Master) AddLease(args *AddLeaseArgs, reply *bool) error {
 	now := uint64(time.Now().Unix())
 	t.roots.AddLease(args.Timeout+now, args.Key)
@@ -128,6 +134,22 @@ func (c *Client) Get(label string) (*v2.Key, error) {
 	return &key, nil
 }
 
+type NameAndKey struct {
+	Name string
+	Key *v2.Key
+}
+
+func (c *Client) GetAll() ([]NameAndKey, error) {
+	var input = ""
+	var result []NameAndKey
+	err := c.client.Call("Master.GetAll", &input, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+
 func (c *Client) Set(label string, key *v2.Key) error {
 	err := c.client.Call("Master.Set", &SetArgs{label, key}, nil)
 	return err
@@ -166,6 +188,16 @@ func (t *TagService) Get(name string) *v2.Key {
 		panic(err.Error())
 	}
 	return key
+}
+
+func (t *TagService) ForEach(callback func (name string, key *v2.Key)) {
+	result, err := t.client.GetAll()
+	if err != nil {
+		panic(err.Error())
+	}
+	for _, nameAndKey := range(result) {
+		callback(nameAndKey.Name, nameAndKey.Key)
+	}
 }
 
 func NewTagService(c *Client) v2.TagService {

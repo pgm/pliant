@@ -228,6 +228,22 @@ func main() {
 				panicIfError(ac.Call("AtomicClient.Pull", &v2.PullArgs{Tag: c.Args().Get(0), Destination: c.Args().Get(1)}, &result))
 			},
 		},
+		{
+			Name:  "roots",
+			Usage: "list roots",
+			Action: func(c *cli.Context) {
+				ac := connectToServer()
+
+				var prefix string = ""
+				var result []v2.ListRootsRecord
+
+				panicIfError(ac.Call("AtomicClient.ListRoots", &prefix, &result))
+
+				for _, r := range(result) {
+					fmt.Printf("%s\t%s\n", r.Name, r.Key)
+				}
+			},
+		},
 	}
 
 	app.Run(os.Args)
