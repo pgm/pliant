@@ -5,12 +5,12 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/pgm/pliant/v2"
 	. "gopkg.in/check.v1"
-	"testing"
-	"os"
 	"io/ioutil"
+	"os"
+	"testing"
 )
 
-type TagSvcSuite struct{
+type TagSvcSuite struct {
 	tempfile string
 }
 
@@ -112,7 +112,7 @@ func (s *TagSvcSuite) TestClientServer(c *C) {
 		Bucket:          "bucket",
 		MasterPort:      0,
 		Prefix:          "prefix",
-		PersistPath: s.tempfile}
+		PersistPath:     s.tempfile}
 
 	l, err := StartServer(config)
 	c.Assert(err, IsNil)

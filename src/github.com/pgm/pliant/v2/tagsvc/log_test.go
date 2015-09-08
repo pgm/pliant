@@ -1,15 +1,15 @@
 package tagsvc
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/pgm/pliant/v2"
 	. "gopkg.in/check.v1"
 	"io/ioutil"
 	"os"
-	"bytes"
 )
 
-type LogSuite struct{
+type LogSuite struct {
 	tempfile string
 }
 

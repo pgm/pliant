@@ -35,15 +35,15 @@ func NewRoots(logName string) *Roots {
 	leases := Leases(make([]KeyLease, 0))
 	labels := make(map[string]*v2.Key)
 
-	log := OpenLog(logName, func(label string, key *v2.Key){
-			labels[label] = key
-		},
-		func(key *v2.Key, timestamp uint64){
+	log := OpenLog(logName, func(label string, key *v2.Key) {
+		labels[label] = key
+	},
+		func(key *v2.Key, timestamp uint64) {
 			leases = append(leases, KeyLease{timestamp: timestamp, key: key})
-		} )
+		})
 
 	roots := &Roots{
-		log : log,
+		log:      log,
 		labels:   labels,
 		leases:   leases,
 		coloring: &Coloring{gray: make(map[v2.Key]int), black: make(map[v2.Key]int)}}
@@ -118,7 +118,7 @@ func (r *Roots) GetNamedRoots() []NameAndKey {
 func (r *Roots) GetRoots() []*v2.Key {
 	namedRoots := r.GetNamedRoots()
 	result := make([]*v2.Key, len(namedRoots))
-	for i, nr := range(namedRoots) {
+	for i, nr := range namedRoots {
 		result[i] = nr.Key
 	}
 	return result
@@ -286,4 +286,3 @@ func (coloring *Coloring) freeWhiteKeys(chunks v2.IterableChunkService, freeCall
 }
 
 //////////////////////////
-

@@ -1,13 +1,13 @@
 package v2
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"github.com/boltdb/bolt"
 	"github.com/golang/protobuf/proto"
 	"sort"
 	"sync"
-	"github.com/boltdb/bolt"
-	"bytes"
 )
 
 var NO_SUCH_PATH = errors.New("No such path")
@@ -69,12 +69,12 @@ func (ac *AtomicClient) Pull(args *PullArgs, result *string) error {
 
 type ListRootsRecord struct {
 	Name string
-	Key *Key
+	Key  *Key
 }
 
 func (ac *AtomicClient) ListRoots(prefix string, resultPtr *[]ListRootsRecord) error {
-		result := make([]ListRootsRecord, 0, 100)
-	err := ac.atomic.ForEachRoot(prefix, func(name string, key *Key){
+	result := make([]ListRootsRecord, 0, 100)
+	err := ac.atomic.ForEachRoot(prefix, func(name string, key *Key) {
 		result = append(result, ListRootsRecord{name, key})
 	})
 	if err != nil {
@@ -183,7 +183,7 @@ type AtomicState struct {
 	tags       TagService
 
 	// list of leases which need to be periodically renewed
-	leases     []string
+	leases []string
 }
 
 type RootMap interface {
@@ -251,7 +251,6 @@ func (self *DbRootMap) ForEach(callback func(name string, x *FileMetadata)) {
 	}
 }
 
-
 type MemRootMap struct {
 	roots map[string]*FileMetadata
 }
@@ -270,7 +269,7 @@ func (self *MemRootMap) Set(name string, value *FileMetadata) {
 }
 
 func (self *MemRootMap) ForEach(callback func(name string, x *FileMetadata)) {
-	for k, v := range(self.roots) {
+	for k, v := range self.roots {
 		callback(k, v)
 	}
 }
@@ -283,7 +282,7 @@ func NewAtomicState(dirService DirectoryService, chunks *ChunkCache, cache *file
 	return &AtomicState{dirService: dirService, roots: roots, cache: cache, chunks: chunks, tags: tags, leases: make([]string, 0, 10)}
 }
 
-var LEASE_TIMEOUT uint64 = 60*60*24
+var LEASE_TIMEOUT uint64 = 60 * 60 * 24
 
 type typedKey struct {
 	key   *Key
@@ -308,7 +307,7 @@ func walk(roots []*Key, readDir func(*Key) *LeafDir, emitEdge func(*Key, *Key) b
 			shouldExplore := emitEdge(nextKey, key)
 
 			if meta.GetIsDir() {
-				if _, seenKey := seen[*key] ; !seenKey {
+				if _, seenKey := seen[*key]; !seenKey {
 					if shouldExplore {
 						roots = append(roots, key)
 						seen[*key] = true
@@ -326,45 +325,45 @@ func walk(roots []*Key, readDir func(*Key) *LeafDir, emitEdge func(*Key, *Key) b
 // roots are assumed to be dir pointers
 func walkReachable(cache *filesystemCacheDB, roots []*Key) ([]*Key, []*FileMetadata) {
 	panic("unimp")
-//
-//	seen := walk()
-//
-//	it := cache.Iterate()
-//	if !this in seen && cache.get(this).source == LOCAL {
-//		drop
-//	}
+	//
+	//	seen := walk()
+	//
+	//	it := cache.Iterate()
+	//	if !this in seen && cache.get(this).source == LOCAL {
+	//		drop
+	//	}
 }
 
 func (self *AtomicState) GC() {
-/*
-	// find referenced remote keys
-	self.lock.Lock()
-	defer self.lock.Unlock()
+	/*
+		// find referenced remote keys
+		self.lock.Lock()
+		defer self.lock.Unlock()
 
-	roots := make([]*Key, 0, len(self.roots))
-	for _, meta := range(self.roots) {
-		roots = append(roots, KeyFromBytes(meta.GetKey()))
-	}
+		roots := make([]*Key, 0, len(self.roots))
+		for _, meta := range(self.roots) {
+			roots = append(roots, KeyFromBytes(meta.GetKey()))
+		}
 
-	unreachableKeys, referencedRemoteObjs := walkReachable(self.cache, roots)
+		unreachableKeys, referencedRemoteObjs := walkReachable(self.cache, roots)
 
-	// create dummy leaf with all referenced remote keys
-	refKey := CreateAnonymousRefLeaf(self.chunks.remote, referencedRemoteObjs)
+		// create dummy leaf with all referenced remote keys
+		refKey := CreateAnonymousRefLeaf(self.chunks.remote, referencedRemoteObjs)
 
-	// create a new single lease
-	newLease := self.tags.AddLease(LEASE_TIMEOUT, refKey)
+		// create a new single lease
+		newLease := self.tags.AddLease(LEASE_TIMEOUT, refKey)
 
-	// revoke existing leases
-	for _, leaseId := range(self.leases) {
-		self.tags.RevokeLease(leaseId)
-	}
+		// revoke existing leases
+		for _, leaseId := range(self.leases) {
+			self.tags.RevokeLease(leaseId)
+		}
 
-	self.leases = [...]string{newLease};
+		self.leases = [...]string{newLease};
 
-	self.cache.delete(unreachableKeys)
+		self.cache.delete(unreachableKeys)
 
-	self.cache.ExpireRemoteObjects()
-*/
+		self.cache.ExpireRemoteObjects()
+	*/
 	panic("unimp")
 }
 
@@ -375,13 +374,13 @@ func (self *AtomicState) Pull(tag string, lease *Lease) *Key {
 }
 
 func (self *AtomicState) DumpDebug() {
-//	self.lock.Lock()
-//	defer self.lock.Unlock()
-//
-//	fmt.Printf("Atomic state has %d entries\n", len(self.roots))
-//	for k, v := range self.roots {
-//		fmt.Printf("  %s -> %s\n", k, KeyFromBytes(v.GetKey()).String())
-//	}
+	//	self.lock.Lock()
+	//	defer self.lock.Unlock()
+	//
+	//	fmt.Printf("Atomic state has %d entries\n", len(self.roots))
+	//	for k, v := range self.roots {
+	//		fmt.Printf("  %s -> %s\n", k, KeyFromBytes(v.GetKey()).String())
+	//	}
 }
 
 func (self *AtomicState) Push(key *Key, tag string, lease *Lease) error {
@@ -451,10 +450,10 @@ func (self *AtomicState) unsafeGetDirsFromPath(path *Path) ([]Directory, error) 
 	parentDirs := make([]Directory, 0, len(path.path))
 	dirMetadata, ok := self.roots.Get(path.path[0])
 	if !ok {
-//		fmt.Printf("Root keys:\n")
-//		for k, v := range self.roots {
-//			fmt.Printf("  %s: %s\n", k, v)
-//		}
+		//		fmt.Printf("Root keys:\n")
+		//		for k, v := range self.roots {
+		//			fmt.Printf("  %s: %s\n", k, v)
+		//		}
 		return nil, NO_SUCH_PATH
 	}
 	i := 0

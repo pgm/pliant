@@ -9,11 +9,11 @@ import (
 	//"net/http"
 	"net/rpc"
 	//	"strconv"
-	"time"
-	"errors"
 	"bytes"
-	"crypto/rand"
 	"crypto/md5"
+	"crypto/rand"
+	"errors"
+	"time"
 )
 
 const CHALLENGE_SIZE int = 64
@@ -45,7 +45,7 @@ type Config struct {
 	MasterPort      int
 	Prefix          string
 	PersistPath     string
-	AuthSecret	 string
+	AuthSecret      string
 }
 
 type Master struct {
@@ -74,7 +74,7 @@ func (t *Master) Set(args *SetArgs, reply *bool) error {
 func (t *Master) Get(label *string, reply *v2.Key) error {
 	replyPtr := t.roots.Get(*label)
 	if replyPtr == nil {
-		return NO_SUCH_KEY;
+		return NO_SUCH_KEY
 	}
 	*reply = *replyPtr
 
@@ -138,34 +138,34 @@ func StartServer(config *Config) (net.Listener, error) {
 		return nil, e
 	}
 	go (func() {
-	log.Printf("Serve starting")
+		log.Printf("Serve starting")
 
-	conn, err := l.Accept()
+		conn, err := l.Accept()
 
-	serverChallenge := RandomChallenge()
-	clientChallenge := make([]byte, CHALLENGE_SIZE)
+		serverChallenge := RandomChallenge()
+		clientChallenge := make([]byte, CHALLENGE_SIZE)
 
-	greetingBuffer := make([]byte, len([]byte(GREETING)))
-	conn.Read(greetingBuffer)
-	n, _ := conn.Read(clientChallenge)
-	if n != CHALLENGE_SIZE {
-		log.Fatalf("expecting challenge but read %d", n)
-	}
-
-	conn.Write(serverChallenge)
-
-	expected := ComputeResponse([]byte(config.AuthSecret), clientChallenge, serverChallenge)
-	response := make([]byte, len(expected))
-	conn.Read(response)
-	if bytes.Compare(expected, response) == 0 {
-		fmt.Printf("Auth succeeded!\n")
-		rpc.ServeConn(conn)
-		if err != nil {
-			log.Fatalf("serve failed %s", err)
+		greetingBuffer := make([]byte, len([]byte(GREETING)))
+		conn.Read(greetingBuffer)
+		n, _ := conn.Read(clientChallenge)
+		if n != CHALLENGE_SIZE {
+			log.Fatalf("expecting challenge but read %d", n)
 		}
-	} else {
-		log.Fatalf("Auth failed")
-	}
+
+		conn.Write(serverChallenge)
+
+		expected := ComputeResponse([]byte(config.AuthSecret), clientChallenge, serverChallenge)
+		response := make([]byte, len(expected))
+		conn.Read(response)
+		if bytes.Compare(expected, response) == 0 {
+			fmt.Printf("Auth succeeded!\n")
+			rpc.ServeConn(conn)
+			if err != nil {
+				log.Fatalf("serve failed %s", err)
+			}
+		} else {
+			log.Fatalf("Auth failed")
+		}
 
 	})()
 
@@ -197,7 +197,7 @@ func (c *Client) Get(label string) (*v2.Key, error) {
 
 type NameAndKey struct {
 	Name string
-	Key *v2.Key
+	Key  *v2.Key
 }
 
 func (c *Client) GetAll() ([]NameAndKey, error) {
@@ -209,7 +209,6 @@ func (c *Client) GetAll() ([]NameAndKey, error) {
 	}
 	return result, nil
 }
-
 
 func (c *Client) Set(label string, key *v2.Key) error {
 	err := c.client.Call("Master.Set", &SetArgs{label, key}, nil)
@@ -260,19 +259,19 @@ func (t *TagService) Get(name string) *v2.Key {
 	key, err := t.client.Get(name)
 	if err != nil {
 		if err.Error() == NO_SUCH_KEY.Error() {
-			return nil;
+			return nil
 		}
 		panic(err.Error())
 	}
 	return key
 }
 
-func (t *TagService) ForEach(callback func (name string, key *v2.Key)) {
+func (t *TagService) ForEach(callback func(name string, key *v2.Key)) {
 	result, err := t.client.GetAll()
 	if err != nil {
 		panic(err.Error())
 	}
-	for _, nameAndKey := range(result) {
+	for _, nameAndKey := range result {
 		callback(nameAndKey.Name, nameAndKey.Key)
 	}
 }

@@ -6,10 +6,10 @@ import (
 	"github.com/pgm/pliant/v2"
 	"github.com/pgm/pliant/v2/s3"
 	"github.com/pgm/pliant/v2/tagsvc"
+	gcfg "gopkg.in/gcfg.v1"
+	"log"
 	"net/rpc"
 	"os"
-	"log"
-	gcfg "gopkg.in/gcfg.v1"
 	"strings"
 )
 
@@ -39,7 +39,7 @@ func expectArgs(c *cli.Context, hasOptionalAdditional bool, reqArgNames ...strin
 	} else {
 		args = make([]string, len(argsTail)+1)
 		args[0] = first
-		for i, arg := range(argsTail) {
+		for i, arg := range argsTail {
 			args[i+1] = arg
 		}
 	}
@@ -86,12 +86,12 @@ func main() {
 				filename := c.Args().Get(0)
 
 				cfg := struct {
-						Minion struct {
-							MasterAddress string
-							AuthSecret string
-							CachePath string
-						}
-					}{}
+					Minion struct {
+						MasterAddress string
+						AuthSecret    string
+						CachePath     string
+					}
+				}{}
 
 				fd, err := os.Open(filename)
 				if err != nil {
@@ -120,7 +120,7 @@ func main() {
 					os.MkdirAll(root, 0770)
 				}
 
-				db, err := v2.InitDb(root+"/db.bolt")
+				db, err := v2.InitDb(root + "/db.bolt")
 				if err != nil {
 					panic(err.Error())
 				}
@@ -139,20 +139,19 @@ func main() {
 			Usage: "starts root service",
 			Action: func(c *cli.Context) {
 				cfg := struct {
-						S3 struct {
-							AccessKeyId string
-							SecretAccessKey string
-							Endpoint string
-							Bucket string
-							Prefix string
-						}
-						Settings struct {
-							Port int
-							PersistPath string
-							AuthSecret string
-						}
-					}{}
-
+					S3 struct {
+						AccessKeyId     string
+						SecretAccessKey string
+						Endpoint        string
+						Bucket          string
+						Prefix          string
+					}
+					Settings struct {
+						Port        int
+						PersistPath string
+						AuthSecret  string
+					}
+				}{}
 
 				expectArgs(c, false, "configFile")
 				filename := c.Args().Get(0)
@@ -168,18 +167,18 @@ func main() {
 
 				config := &tagsvc.Config{AccessKeyId: cfg.S3.AccessKeyId,
 					SecretAccessKey: cfg.S3.SecretAccessKey,
-					Endpoint: cfg.S3.Endpoint,
-					Bucket: cfg.S3.Bucket,
-					Prefix: cfg.S3.Prefix,
-					MasterPort: cfg.Settings.Port,
-					PersistPath: cfg.Settings.PersistPath,
-					AuthSecret: cfg.Settings.AuthSecret}
+					Endpoint:        cfg.S3.Endpoint,
+					Bucket:          cfg.S3.Bucket,
+					Prefix:          cfg.S3.Prefix,
+					MasterPort:      cfg.Settings.Port,
+					PersistPath:     cfg.Settings.PersistPath,
+					AuthSecret:      cfg.Settings.AuthSecret}
 				_, err = tagsvc.StartServer(config)
 				if err != nil {
 					log.Fatalf("StartServer failed %s", err)
 				}
 				log.Printf("StartServer completed")
-				select{}
+				select {}
 			},
 		},
 		{
@@ -267,19 +266,19 @@ func main() {
 
 				panicIfError(ac.Call("AtomicClient.ListFiles", path, &result))
 
-					for _, rec := range result {
-						if !isLong {
+				for _, rec := range result {
+					if !isLong {
 						fmt.Printf("%s\n", rec.Name)
+					} else {
+						var prefix string
+						if rec.IsDir {
+							prefix = "d"
 						} else {
-							var prefix string
-							if rec.IsDir {
-								prefix = "d"
-							} else {
-								prefix = "-"
-							}
-							fmt.Printf("%s % 12d %s\n", prefix, rec.Length, rec.Name)
+							prefix = "-"
 						}
+						fmt.Printf("%s % 12d %s\n", prefix, rec.Length, rec.Name)
 					}
+				}
 			},
 		},
 		{
@@ -304,7 +303,7 @@ func main() {
 				ac := connectToServer()
 
 				var result string
-				expectArgs(c, false,  "label", "path")
+				expectArgs(c, false, "label", "path")
 				path := c.Args().Get(1)
 				label := c.Args().Get(0)
 
@@ -322,7 +321,7 @@ func main() {
 
 				panicIfError(ac.Call("AtomicClient.ListRoots", &prefix, &result))
 
-				for _, r := range(result) {
+				for _, r := range result {
 					fmt.Printf("%s\t%s\n", r.Name, r.Key)
 				}
 			},

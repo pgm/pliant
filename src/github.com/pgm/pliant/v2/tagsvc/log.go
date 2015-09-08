@@ -1,21 +1,20 @@
 package tagsvc
 
 import (
-	"os"
 	"bytes"
 	"github.com/golang/protobuf/proto"
 	"github.com/pgm/pliant/v2"
-//	"fmt"
+	"os"
+	//	"fmt"
 )
-
 
 type Log struct {
 	w *os.File
 }
 
 func (log *Log) write(buffer []byte) {
-	paddedBuffer  := bytes.NewBuffer(make ([]byte, 0, len(buffer)+2) )
-	paddedBuffer.WriteByte(byte(len(buffer)>>8))
+	paddedBuffer := bytes.NewBuffer(make([]byte, 0, len(buffer)+2))
+	paddedBuffer.WriteByte(byte(len(buffer) >> 8))
 	paddedBuffer.WriteByte(byte(len(buffer)))
 	paddedBuffer.Write(buffer)
 	log.w.Write(paddedBuffer.Bytes())
@@ -73,7 +72,7 @@ func (log *Log) appendLease(key *v2.Key, timestamp uint64) {
 	log.write(buffer)
 }
 
-func OpenLog(filename string, replayLabel func(label string, key *v2.Key), replayLease func(key *v2.Key, timestamp uint64) ) *Log {
+func OpenLog(filename string, replayLabel func(label string, key *v2.Key), replayLease func(key *v2.Key, timestamp uint64)) *Log {
 	w, err := os.OpenFile(filename, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0700)
 	if err != nil {
 		panic(err.Error())

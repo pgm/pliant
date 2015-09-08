@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-type AtomicSuite struct{
+type AtomicSuite struct {
 }
 
 var _ = Suite(&AtomicSuite{})

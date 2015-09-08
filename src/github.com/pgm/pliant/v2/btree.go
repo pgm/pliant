@@ -227,7 +227,7 @@ func (d *LeafDir) Get(name string) *FileMetadata {
 // this is used to create a set of references which are used in the transient refs.
 func CreateAnonymousRefLeaf(chunks ChunkService, metadatas []*FileMetadata) *Key {
 	leaf := &EMPTY_DIR
-	for i, meta := range(metadatas) {
+	for i, meta := range metadatas {
 		leaf = leaf.insert(&LeafEntry{name: strconv.Itoa(i), metadata: meta})
 	}
 	return writeLeaf(chunks, leaf)

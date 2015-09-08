@@ -3,15 +3,15 @@ package v2
 import (
 	"sync"
 	//	"github.com/boltdb/bolt"
+	"errors"
 	"fmt"
+	"github.com/boltdb/bolt"
+	"github.com/golang/protobuf/proto"
 	"io"
 	"io/ioutil"
 	"os"
 	"strings"
-	"github.com/boltdb/bolt"
 	"time"
-	"github.com/golang/protobuf/proto"
-	"errors"
 )
 
 type sourceEnum int
@@ -123,10 +123,9 @@ func NewMemCacheDB() *memcacheDB {
 
 type filesystemCacheDB struct {
 	root string
-	db *bolt.DB;
-	lock    sync.Mutex // TODO: Can this be eliminated now that we're no longer using a map
+	db   *bolt.DB
+	lock sync.Mutex // TODO: Can this be eliminated now that we're no longer using a map
 }
-
 
 func (f *filesystemCacheDB) AllocateTempFilename() string {
 	fp, err := ioutil.TempFile(f.root, "temp")
@@ -195,7 +194,7 @@ func (r *FilesystemResource) GetReader() io.Reader {
 	return f
 }
 
-var KEY_TO_FILENAME  []byte = []byte("keyToFilename")
+var KEY_TO_FILENAME []byte = []byte("keyToFilename")
 var ROOT_TO_KEY []byte = []byte("rootToKey")
 
 func unpackCacheEntry(src []byte, entry *cacheEntry) {
@@ -212,7 +211,7 @@ func unpackCacheEntry(src []byte, entry *cacheEntry) {
 	}
 }
 
-func packCacheEntry(entry *cacheEntry) [] byte {
+func packCacheEntry(entry *cacheEntry) []byte {
 	filename := entry.resource.(*FilesystemResource).filename
 	source := CacheEntry_SourceType(entry.source)
 	data, err := proto.Marshal(&CacheEntry{Filename: proto.String(filename), Source: &source})
@@ -234,7 +233,7 @@ func (c *filesystemCacheDB) Get(key *Key) *cacheEntry {
 		b := tx.Bucket(KEY_TO_FILENAME)
 		entryBuffer := b.Get(key.AsBytes())
 		if entryBuffer == nil {
-//			panic(fmt.Sprintf("Key %s did not exist in %s", key, c.db))
+			//			panic(fmt.Sprintf("Key %s did not exist in %s", key, c.db))
 			return NO_SUCH_KEY
 		} else {
 			fmt.Printf("len(entryBuffer)=%d\n", len(entryBuffer))
@@ -261,7 +260,7 @@ func (c *filesystemCacheDB) Dump() {
 		b := tx.Bucket(KEY_TO_FILENAME)
 		b.ForEach(func(k, v []byte) error {
 			key := KeyFromBytes(k)
-			var entry cacheEntry;
+			var entry cacheEntry
 			unpackCacheEntry(v, &entry)
 			fmt.Printf("  %s -> %s\n", key, entry)
 			return nil

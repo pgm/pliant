@@ -3,21 +3,21 @@ package v2
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"strings"
-	"fmt"
 )
 
 type Key [32]byte
 
 var EMPTY_DIR_KEY_ Key = ([32]byte{1, 1, 1, 1,
-		1, 1, 1, 1,
-		1, 1, 1, 1,
-		1, 1, 1, 1,
-		1, 1, 1, 1,
-		1, 1, 1, 1,
-		1, 1, 1, 1,
-		1, 1, 1, 1})
+	1, 1, 1, 1,
+	1, 1, 1, 1,
+	1, 1, 1, 1,
+	1, 1, 1, 1,
+	1, 1, 1, 1,
+	1, 1, 1, 1,
+	1, 1, 1, 1})
 var EMPTY_DIR_KEY *Key = &EMPTY_DIR_KEY_
 
 const KEY_STR_LEN = 44
