@@ -10,6 +10,7 @@ import (
 	"os"
 	"log"
 	gcfg "gopkg.in/gcfg.v1"
+	"strings"
 )
 
 const SERVER_BINDING string = "pliantctl"
@@ -28,6 +29,29 @@ func panicIfError(err error) {
 	}
 }
 
+func expectArgs(c *cli.Context, hasOptionalAdditional bool, reqArgNames ...string) {
+	// this is pretty backwards way to get a list of the args
+	first := c.Args().First()
+	argsTail := c.Args().Tail()
+	var args []string
+	if first == "" && argsTail == nil {
+		args = nil
+		fmt.Printf("args = nil\n")
+	} else {
+		args = make([]string, len(argsTail)+1)
+		args[0] = first
+		for i, arg := range(argsTail) {
+			args[i+1] = arg
+		}
+		fmt.Printf("after args = %s\n", args)
+	}
+
+	fmt.Printf("args = %s [first=%s]\n", args, first)
+	if !hasOptionalAdditional && len(args) != len(reqArgNames) {
+		log.Fatalf("Expected arguments: %s", strings.Join(reqArgNames, ", "))
+	}
+}
+
 func main() {
 	app := cli.NewApp()
 	app.Name = "pliant"
@@ -39,7 +63,9 @@ func main() {
 			Action: func(c *cli.Context) {
 				ac := connectToServer()
 				var key string
-				panicIfError(ac.Call("AtomicClient.GetKey", c.Args().First(), &key))
+				expectArgs(c, false, "path")
+				path := c.Args().First()
+				panicIfError(ac.Call("AtomicClient.GetKey", path, &key))
 				println(key)
 			},
 		},
@@ -49,7 +75,9 @@ func main() {
 			Action: func(c *cli.Context) {
 				ac := connectToServer()
 				var key string
-				panicIfError(ac.Call("AtomicClient.MakeDir", c.Args().First(), &key))
+				expectArgs(c, false, "path")
+				path := c.Args().First()
+				panicIfError(ac.Call("AtomicClient.MakeDir", path, &key))
 				println(key)
 			},
 		},
@@ -57,9 +85,29 @@ func main() {
 			Name:  "minion",
 			Usage: "starts master service",
 			Action: func(c *cli.Context) {
+				expectArgs(c, false, "configFile")
+				filename := c.Args().Get(0)
+
+				cfg := struct {
+						Minion struct {
+							MasterAddress string
+							AuthSecret string
+							CachePath string
+						}
+					}{}
+
+				fd, err := os.Open(filename)
+				if err != nil {
+					log.Fatalf("Could not open %s", filename)
+				}
+				err = gcfg.ReadInto(&cfg, fd)
+				if err != nil {
+					log.Fatalf("Failed to parse %s: %s", filename, err)
+				}
+				fd.Close()
+
 				// contact the master and get the config
-				masterAddress := c.Args().Get(0)
-				tagsvcClient := tagsvc.NewClient(masterAddress)
+				tagsvcClient := tagsvc.NewClient(cfg.Minion.MasterAddress, []byte(cfg.Minion.AuthSecret))
 				config, err := tagsvcClient.GetConfig()
 				if err != nil {
 					panic(err.Error())
@@ -69,7 +117,7 @@ func main() {
 					os.Remove(SERVER_BINDING)
 				}
 
-				root := "cache"
+				root := cfg.Minion.CachePath
 				_, err = os.Stat(root)
 				if os.IsNotExist(err) {
 					os.MkdirAll(root, 0770)
@@ -104,10 +152,13 @@ func main() {
 						Settings struct {
 							Port int
 							PersistPath string
+							AuthSecret string
 						}
 					}{}
 
-				filename := "config.ini"
+
+				expectArgs(c, false, "configFile")
+				filename := c.Args().Get(0)
 				fd, err := os.Open(filename)
 				if err != nil {
 					log.Fatalf("Could not open %s", filename)
@@ -124,7 +175,8 @@ func main() {
 					Bucket: cfg.S3.Bucket,
 					Prefix: cfg.S3.Prefix,
 					MasterPort: cfg.Settings.Port,
-					PersistPath: cfg.Settings.PersistPath}
+					PersistPath: cfg.Settings.PersistPath,
+					AuthSecret: cfg.Settings.AuthSecret}
 				_, err = tagsvc.StartServer(config)
 				if err != nil {
 					log.Fatalf("StartServer failed %s", err)
@@ -147,6 +199,7 @@ func main() {
 				ac := connectToServer()
 				var result string
 
+				expectArgs(c, false, "key", "path")
 				key := c.Args().Get(0)
 				path := c.Args().Get(1)
 				isDir := true
@@ -163,7 +216,10 @@ func main() {
 				ac := connectToServer()
 				var result string
 
-				panicIfError(ac.Call("AtomicClient.Unlink", c.Args().First(), &result))
+				expectArgs(c, false, "path")
+				path := c.Args().Get(0)
+
+				panicIfError(ac.Call("AtomicClient.Unlink", path, &result))
 
 				println(result)
 			},
@@ -175,7 +231,10 @@ func main() {
 				ac := connectToServer()
 				var result string
 
-				panicIfError(ac.Call("AtomicClient.GetLocalPath", c.Args().First(), &result))
+				expectArgs(c, false, "path")
+				path := c.Args().Get(0)
+
+				panicIfError(ac.Call("AtomicClient.GetLocalPath", path, &result))
 
 				println(result)
 			},
@@ -187,7 +246,11 @@ func main() {
 				ac := connectToServer()
 				var result string
 
-				panicIfError(ac.Call("AtomicClient.PutLocalPath", &v2.PutLocalPathArgs{LocalPath: c.Args().Get(0), DestPath: c.Args().Get(1)}, &result))
+				expectArgs(c, false, "localpath", "path")
+				localpath := c.Args().Get(0)
+				remotepath := c.Args().Get(1)
+
+				panicIfError(ac.Call("AtomicClient.PutLocalPath", &v2.PutLocalPathArgs{LocalPath: localpath, DestPath: remotepath}, &result))
 
 				println(result)
 			},
@@ -199,7 +262,10 @@ func main() {
 				ac := connectToServer()
 				var result []v2.ListFilesRecord
 
-				panicIfError(ac.Call("AtomicClient.ListFiles", c.Args().First(), &result))
+				expectArgs(c, false, "path")
+				path := c.Args().Get(0)
+
+				panicIfError(ac.Call("AtomicClient.ListFiles", path, &result))
 
 				for _, rec := range result {
 					fmt.Printf("%s\n", rec.Name)
@@ -214,7 +280,11 @@ func main() {
 
 				var result string
 
-				panicIfError(ac.Call("AtomicClient.Push", &v2.PushArgs{Source: c.Args().Get(0), Tag: c.Args().Get(1)}, &result))
+				expectArgs(c, false, "path", "label")
+				path := c.Args().Get(0)
+				label := c.Args().Get(1)
+
+				panicIfError(ac.Call("AtomicClient.Push", &v2.PushArgs{Source: path, Tag: label}, &result))
 			},
 		},
 		{
@@ -224,8 +294,11 @@ func main() {
 				ac := connectToServer()
 
 				var result string
+				expectArgs(c, false,  "label", "path")
+				path := c.Args().Get(1)
+				label := c.Args().Get(0)
 
-				panicIfError(ac.Call("AtomicClient.Pull", &v2.PullArgs{Tag: c.Args().Get(0), Destination: c.Args().Get(1)}, &result))
+				panicIfError(ac.Call("AtomicClient.Pull", &v2.PullArgs{Tag: label, Destination: path}, &result))
 			},
 		},
 		{

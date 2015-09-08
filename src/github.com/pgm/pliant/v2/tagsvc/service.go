@@ -6,12 +6,34 @@ import (
 	"github.com/pgm/pliant/v2/s3"
 	"log"
 	"net"
-	"net/http"
+	//"net/http"
 	"net/rpc"
 	//	"strconv"
 	"time"
 	"errors"
+	"bytes"
+	"crypto/rand"
+	"crypto/md5"
 )
+
+const CHALLENGE_SIZE int = 64
+const GREETING string = "minion_v1\n"
+
+func RandomChallenge() []byte {
+	b := make([]byte, CHALLENGE_SIZE)
+	rand.Read(b)
+	return b
+}
+
+func ComputeResponse(secret []byte, client []byte, server []byte) []byte {
+	buf := bytes.NewBuffer(make([]byte, 0, 100))
+	buf.Write(secret)
+	buf.Write(client)
+	buf.Write(server)
+	response := md5.Sum(buf.Bytes())
+
+	return response[:]
+}
 
 var NO_SUCH_KEY error = errors.New("No such key")
 
@@ -23,6 +45,7 @@ type Config struct {
 	MasterPort      int
 	Prefix          string
 	PersistPath     string
+	AuthSecret	 string
 }
 
 type Master struct {
@@ -90,6 +113,21 @@ func (t *Master) GetConfig(nothing *string, reply *Config) error {
 	return nil
 }
 
+/*	clientChallenge := RandomChallenge()
+
+	conn.Write([]byte(GREETING))
+	conn.Write(clientChallenge)
+
+	serverChallenge := make([]byte, CHALLENGE_SIZE)
+	n, err := conn.Read(serverChallenge)
+	if n != CHALLENGE_SIZE {
+		log.Fatalf("expecting challenge but read %d", n)
+	}
+
+	response := ComputeResponse([]byte(authSecret), clientChallenge, serverChallenge)
+	conn.Write(response)
+*/
+
 func StartServer(config *Config) (net.Listener, error) {
 	ac := &Master{config: config, roots: NewRoots(config.PersistPath)}
 	rpc.Register(ac)
@@ -102,10 +140,33 @@ func StartServer(config *Config) (net.Listener, error) {
 	go (func() {
 	log.Printf("Serve starting")
 
-	err := http.Serve(l, nil)
+	conn, err := l.Accept()
+
+	serverChallenge := RandomChallenge()
+	clientChallenge := make([]byte, CHALLENGE_SIZE)
+
+	greetingBuffer := make([]byte, len([]byte(GREETING)))
+	conn.Read(greetingBuffer)
+	n, _ := conn.Read(clientChallenge)
+	if n != CHALLENGE_SIZE {
+		log.Fatalf("expecting challenge but read %d", n)
+	}
+
+	conn.Write(serverChallenge)
+
+	expected := ComputeResponse([]byte(config.AuthSecret), clientChallenge, serverChallenge)
+	response := make([]byte, len(expected))
+	conn.Read(response)
+	if bytes.Compare(expected, response) == 0 {
+		fmt.Printf("Auth succeeded!\n")
+		rpc.ServeConn(conn)
 		if err != nil {
 			log.Fatalf("serve failed %s", err)
 		}
+	} else {
+		log.Fatalf("Auth failed")
+	}
+
 	})()
 
 	return l, nil
@@ -160,11 +221,27 @@ func (c *Client) AddLease(Timeout uint64, Key *v2.Key) error {
 	return err
 }
 
-func NewClient(address string) *Client {
-	client, err := rpc.DialHTTP("tcp", address)
+func NewClient(address string, authSecret []byte) *Client {
+	conn, err := net.Dial("tcp", address)
 	if err != nil {
 		log.Fatal("dialing:", err)
 	}
+
+	clientChallenge := RandomChallenge()
+
+	conn.Write([]byte(GREETING))
+	conn.Write(clientChallenge)
+
+	serverChallenge := make([]byte, CHALLENGE_SIZE)
+	n, err := conn.Read(serverChallenge)
+	if n != CHALLENGE_SIZE {
+		log.Fatalf("expecting challenge but read %d", n)
+	}
+
+	response := ComputeResponse([]byte(authSecret), clientChallenge, serverChallenge)
+	conn.Write(response)
+
+	client := rpc.NewClient(conn)
 	return &Client{client: client}
 }
 
