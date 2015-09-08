@@ -207,7 +207,6 @@ func (self *DbRootMap) Get(name string) (*FileMetadata, bool) {
 	err := self.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(ROOT_TO_KEY)
 		buffer := b.Get([]byte(name))
-		fmt.Printf("got %s, len(buffer) = %d\n", name, len(buffer))
 		if buffer != nil {
 			*result = UnpackFileMetadata(bytes.NewBuffer(buffer))
 		}
@@ -451,7 +450,6 @@ func (self *AtomicState) unsafeGetDirsFromPath(path *Path) ([]Directory, error) 
 	// otherwise we need to descend in until we find the parent
 	parentDirs := make([]Directory, 0, len(path.path))
 	dirMetadata, ok := self.roots.Get(path.path[0])
-	fmt.Printf("Get(%s) -> %s, %s\n", dirMetadata, ok)
 	if !ok {
 //		fmt.Printf("Root keys:\n")
 //		for k, v := range self.roots {

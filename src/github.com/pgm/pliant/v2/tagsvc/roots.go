@@ -48,7 +48,7 @@ func NewRoots(logName string) *Roots {
 		leases:   leases,
 		coloring: &Coloring{gray: make(map[v2.Key]int), black: make(map[v2.Key]int)}}
 	heap.Init(&roots.leases)
-	fmt.Printf("%s", roots)
+	//fmt.Printf("%s", roots)
 	return roots
 }
 
@@ -168,7 +168,7 @@ func (c *Coloring) mark(key *v2.Key, color Color) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	fmt.Printf("Mark %s %s\n", key.String(), color)
+	//fmt.Printf("Mark %s %s\n", key.String(), color)
 
 	if color == GRAY {
 		_, isBlack := c.black[*key]

@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"github.com/golang/protobuf/proto"
 	"github.com/pgm/pliant/v2"
-	"fmt"
+//	"fmt"
 )
 
 
@@ -24,7 +24,7 @@ func (log *Log) write(buffer []byte) {
 func (log *Log) read() []byte {
 	var padding [2]byte
 	n, err := log.w.Read(padding[:])
-	fmt.Printf("read -> %d (%d, %d)\n", n, int(padding[0]&0xff), int(padding[1]&0xff))
+	//fmt.Printf("read -> %d (%d, %d)\n", n, int(padding[0]&0xff), int(padding[1]&0xff))
 	if n == 0 {
 		return nil
 	}
@@ -41,7 +41,7 @@ func (log *Log) read() []byte {
 		panic("failed full read")
 	}
 
-	fmt.Printf("read returning buffer, len(buffer)=%d, length=%d\n", len(buffer), n)
+	//fmt.Printf("read returning buffer, len(buffer)=%d, length=%d\n", len(buffer), n)
 	return buffer
 }
 
@@ -83,7 +83,7 @@ func OpenLog(filename string, replayLabel func(label string, key *v2.Key), repla
 
 	for {
 		buffer := log.read()
-		fmt.Printf("Read() -> len %d\n", len(buffer))
+		//fmt.Printf("Read() -> len %d\n", len(buffer))
 		if len(buffer) == 0 {
 			break
 		}

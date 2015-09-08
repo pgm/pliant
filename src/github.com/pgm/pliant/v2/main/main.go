@@ -36,17 +36,14 @@ func expectArgs(c *cli.Context, hasOptionalAdditional bool, reqArgNames ...strin
 	var args []string
 	if first == "" && argsTail == nil {
 		args = nil
-		fmt.Printf("args = nil\n")
 	} else {
 		args = make([]string, len(argsTail)+1)
 		args[0] = first
 		for i, arg := range(argsTail) {
 			args[i+1] = arg
 		}
-		fmt.Printf("after args = %s\n", args)
 	}
 
-	fmt.Printf("args = %s [first=%s]\n", args, first)
 	if !hasOptionalAdditional && len(args) != len(reqArgNames) {
 		log.Fatalf("Expected arguments: %s", strings.Join(reqArgNames, ", "))
 	}
@@ -258,6 +255,7 @@ func main() {
 		{
 			Name:  "ls",
 			Usage: "list files at specified directory",
+			Flags: []cli.Flag{cli.BoolFlag{Name: "l", Usage: "if set, will display details.  Otherwise only the names are displayed"}},
 			Action: func(c *cli.Context) {
 				ac := connectToServer()
 				var result []v2.ListFilesRecord
@@ -265,11 +263,23 @@ func main() {
 				expectArgs(c, false, "path")
 				path := c.Args().Get(0)
 
+				isLong := c.Bool("l")
+
 				panicIfError(ac.Call("AtomicClient.ListFiles", path, &result))
 
-				for _, rec := range result {
-					fmt.Printf("%s\n", rec.Name)
-				}
+					for _, rec := range result {
+						if !isLong {
+						fmt.Printf("%s\n", rec.Name)
+						} else {
+							var prefix string
+							if rec.IsDir {
+								prefix = "d"
+							} else {
+								prefix = "-"
+							}
+							fmt.Printf("%s % 12d %s\n", prefix, rec.Length, rec.Name)
+						}
+					}
 			},
 		},
 		{
