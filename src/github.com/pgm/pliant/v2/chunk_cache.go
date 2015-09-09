@@ -244,7 +244,7 @@ func (c *filesystemCacheDB) Get(key *Key) *cacheEntry {
 			//			panic(fmt.Sprintf("Key %s did not exist in %s", key, c.db))
 			return NO_SUCH_KEY
 		} else {
-			fmt.Printf("len(entryBuffer)=%d\n", len(entryBuffer))
+//			fmt.Printf("len(entryBuffer)=%d\n", len(entryBuffer))
 		}
 		unpackCacheEntry(entryBuffer, &entry)
 
@@ -332,7 +332,7 @@ func (c *filesystemCacheDB) Put(key *Key, entry *cacheEntry) {
 	c.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(KEY_TO_FILENAME)
 		fsentryBuffer := packCacheEntry(fsentry)
-		fmt.Printf("Put(%s, len(entry)=%d (%s)\n", key, len(fsentryBuffer), c.db)
+//		fmt.Printf("Put(%s, len(entry)=%d (%s)\n", key, len(fsentryBuffer), c.db)
 		err := b.Put(key.AsBytes(), fsentryBuffer)
 		return err
 	})

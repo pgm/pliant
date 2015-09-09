@@ -128,6 +128,44 @@ func (t *Master) GetConfig(nothing *string, reply *Config) error {
 	conn.Write(response)
 */
 
+func handleConnection(config *Config, conn net.Conn) {
+	serverChallenge := RandomChallenge()
+	clientChallenge := make([]byte, CHALLENGE_SIZE)
+
+	greetingBuffer := make([]byte, len([]byte(GREETING)))
+	conn.Read(greetingBuffer)
+	n, _ := conn.Read(clientChallenge)
+	if n != CHALLENGE_SIZE {
+		log.Fatalf("expecting challenge but read %d", n)
+	}
+
+	conn.Write(serverChallenge)
+
+	expected := ComputeResponse([]byte(config.AuthSecret), clientChallenge, serverChallenge)
+	response := make([]byte, len(expected))
+	conn.Read(response)
+	if bytes.Compare(expected, response) == 0 {
+		fmt.Printf("Auth succeeded!\n")
+		rpc.ServeConn(conn)
+	} else {
+		fmt.Printf("Auth failed!\n")
+		conn.Close()
+	}
+}
+
+func listenForever(config *Config, l net.Listener) {
+	for  {
+		log.Printf("Serve starting")
+
+		conn, err := l.Accept()
+				if err != nil {
+					fmt.Printf("Accept failed %s", err)
+				}
+
+		go handleConnection(config, conn)
+	}
+}
+
 func StartServer(config *Config) (net.Listener, error) {
 	ac := &Master{config: config, roots: NewRoots(config.PersistPath)}
 	rpc.Register(ac)
@@ -137,37 +175,9 @@ func StartServer(config *Config) (net.Listener, error) {
 		log.Fatal("listen error:", e)
 		return nil, e
 	}
-	go (func() {
-		log.Printf("Serve starting")
 
-		conn, err := l.Accept()
 
-		serverChallenge := RandomChallenge()
-		clientChallenge := make([]byte, CHALLENGE_SIZE)
-
-		greetingBuffer := make([]byte, len([]byte(GREETING)))
-		conn.Read(greetingBuffer)
-		n, _ := conn.Read(clientChallenge)
-		if n != CHALLENGE_SIZE {
-			log.Fatalf("expecting challenge but read %d", n)
-		}
-
-		conn.Write(serverChallenge)
-
-		expected := ComputeResponse([]byte(config.AuthSecret), clientChallenge, serverChallenge)
-		response := make([]byte, len(expected))
-		conn.Read(response)
-		if bytes.Compare(expected, response) == 0 {
-			fmt.Printf("Auth succeeded!\n")
-			rpc.ServeConn(conn)
-			if err != nil {
-				log.Fatalf("serve failed %s", err)
-			}
-		} else {
-			log.Fatalf("Auth failed")
-		}
-
-	})()
+	go listenForever(config, l)
 
 	return l, nil
 }
