@@ -9,6 +9,7 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"path/filepath"
 )
 
 var NO_SUCH_PATH = errors.New("No such path")
@@ -138,7 +139,10 @@ func (ac *AtomicClient) GetLocalPath(path string, localPath *string) error {
 	if resource == nil {
 		return errors.New(fmt.Sprintf("Resource missing: %s", key.String()))
 	}
-	*localPath = (resource.(*FilesystemResource)).filename
+	*localPath, err = filepath.Abs((resource.(*FilesystemResource)).filename)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
