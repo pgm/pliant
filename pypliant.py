@@ -70,13 +70,15 @@ class FS(object):
   def mkdir(self, path):
     self.client.mkdir(path)
   def listdir(self, path):
-    return self.client.ls(path)
+    return [x['Name'] for x in self.client.listdir(path)]
 
 client = Pliant(7788)
 fs = FS(client)
+
+####################
 fd = fs.open("foo/sample", "w")
 fd.write("hello")
 fd.close()
-print( client.listdir("foo"))
+print( fs.listdir("foo"))
 fd = fs.open("foo/sample", "r")
 print("file contents: %r" % fd.read())
