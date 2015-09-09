@@ -11,6 +11,7 @@ import (
 	"net/rpc"
 	"os"
 	"strings"
+	"time"
 )
 
 const SERVER_BINDING string = "pliantctl"
@@ -276,7 +277,8 @@ func main() {
 						} else {
 							prefix = "-"
 						}
-						fmt.Printf("%s % 12d %s\n", prefix, rec.Length, rec.Name)
+						creationTime := time.Unix(rec.CreationTime, 0)
+						fmt.Printf("%s % 12d  % 12d  %s  %s\n", prefix, rec.Size, rec.TotalSize, creationTime.Local().Format(time.UnixDate), rec.Name)
 					}
 				}
 			},

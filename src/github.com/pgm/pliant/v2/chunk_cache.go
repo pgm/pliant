@@ -175,6 +175,14 @@ func NewFileResource(filename string) (*FilesystemResource, error) {
 	return &FilesystemResource{filename, s.Size()}, nil
 }
 
+func (r *FilesystemResource) GetLength() int64 {
+	stat, err := os.Stat(r.filename)
+	if err != nil {
+		panic(err.Error())
+	}
+	return stat.Size()
+}
+
 func (r *FilesystemResource) AsBytes() []byte {
 	buffer := make([]byte, r.length)
 	f, err := os.Open(r.filename)

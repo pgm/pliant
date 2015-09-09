@@ -52,7 +52,7 @@ func (log *Log) appendLabel(label string, key *v2.Key) {
 	} else {
 		keyBytes = key.AsBytes()
 	}
-	buffer, err := proto.Marshal(&v2.RootLog{EntryType: &et, Name: proto.String(label), Key: keyBytes})
+	buffer, err := proto.Marshal(&v2.RootLog{Type: &et, Name: proto.String(label), Key: keyBytes})
 	if err != nil {
 		panic(err.Error())
 	}
@@ -65,7 +65,7 @@ func (log *Log) Close() {
 
 func (log *Log) appendLease(key *v2.Key, timestamp uint64) {
 	et := v2.RootLog_LEASE
-	buffer, err := proto.Marshal(&v2.RootLog{EntryType: &et, Key: key.AsBytes(), Expiry: proto.Uint64(timestamp)})
+	buffer, err := proto.Marshal(&v2.RootLog{Type: &et, Key: key.AsBytes(), Expiry: proto.Uint64(timestamp)})
 	if err != nil {
 		panic(err.Error())
 	}
@@ -90,9 +90,9 @@ func OpenLog(filename string, replayLabel func(label string, key *v2.Key), repla
 		var entry v2.RootLog
 		proto.Unmarshal(buffer, &entry)
 
-		if entry.GetEntryType() == v2.RootLog_LEASE {
+		if entry.GetType() == v2.RootLog_LEASE {
 			replayLease(v2.KeyFromBytes(entry.GetKey()), entry.GetExpiry())
-		} else if entry.GetEntryType() == v2.RootLog_LABEL {
+		} else if entry.GetType() == v2.RootLog_LABEL {
 			var key *v2.Key
 			if entry.Key == nil {
 				key = nil

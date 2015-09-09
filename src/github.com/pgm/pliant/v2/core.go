@@ -63,9 +63,10 @@ type Directory interface {
 	// All methods threadsafe because they never mutate structures and all parameters are immutable.
 
 	Get(name string) *FileMetadata
-	Put(name string, metadata *FileMetadata) *Key
-	Remove(name string) *Key
+	Put(name string, metadata *FileMetadata) (*Key, int64)
+	Remove(name string) (*Key, int64)
 	Iterate() Iterator
+	GetTotalSize() int64
 }
 
 type Iterator interface {
@@ -80,6 +81,7 @@ type DirectoryService interface {
 type Resource interface {
 	AsBytes() []byte
 	GetReader() io.Reader
+	GetLength() int64
 }
 
 type FileResource struct {

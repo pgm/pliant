@@ -1,10 +1,11 @@
 package v2;
 
 message FileMetadata {
-	optional int64 length = 1;
+    optional int64 size = 1;
 	optional bytes key = 2;
 	optional int64 creation_time = 3;
     optional bool IsDir = 4;
+    optional int64 totalSize = 5;
 }
 
 message LeafRecordEntry {

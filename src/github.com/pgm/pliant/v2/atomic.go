@@ -8,6 +8,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"sort"
 	"sync"
+	"time"
 )
 
 var NO_SUCH_PATH = errors.New("No such path")
@@ -88,7 +89,9 @@ func (ac *AtomicClient) ListRoots(prefix string, resultPtr *[]ListRootsRecord) e
 type ListFilesRecord struct {
 	Name   string
 	IsDir  bool
-	Length int64
+	Size int64
+	TotalSize int64
+	CreationTime int64
 }
 
 func (ac *AtomicClient) ListFiles(path string, result *[]ListFilesRecord) error {
@@ -102,7 +105,7 @@ func (ac *AtomicClient) ListFiles(path string, result *[]ListFilesRecord) error 
 
 	for it.HasNext() {
 		name, metadata := it.Next()
-		records = append(records, ListFilesRecord{Name: name, IsDir: metadata.GetIsDir(), Length: metadata.GetLength()})
+		records = append(records, ListFilesRecord{Name: name, IsDir: metadata.GetIsDir(), TotalSize: metadata.GetTotalSize(), Size: metadata.GetSize(), CreationTime: metadata.GetCreationTime()})
 	}
 
 	*result = records
@@ -606,6 +609,20 @@ func (self *AtomicState) Put(destination *Path, resource Resource) (*Key, error)
 }
 
 func (self *AtomicState) unsafeLink(key *Key, path *Path, isDir bool) error {
+	var length int64
+	var childrenSize int64
+	if *key == *EMPTY_DIR_KEY {
+		length = 0
+		childrenSize = 0
+	} else {
+		length = self.cache.Get(key).resource.GetLength()
+		if isDir {
+			childrenSize = self.dirService.GetDirectory(key).GetTotalSize()
+		} else {
+			childrenSize = 0
+		}
+	}
+
 	// TODO: check for len(path) == 0 (error)
 	var newParentKey *Key
 	if len(path.path) == 0 {
@@ -620,19 +637,25 @@ func (self *AtomicState) unsafeLink(key *Key, path *Path, isDir bool) error {
 			return err
 		}
 
-		var metadata *FileMetadata = &FileMetadata{Length: proto.Int64(0), Key: key.AsBytes(), IsDir: proto.Bool(isDir)}
+		var metadata *FileMetadata = &FileMetadata{TotalSize: proto.Int64(childrenSize + length), Size: proto.Int64(length), Key: key.AsBytes(), IsDir: proto.Bool(isDir), CreationTime: proto.Int64(time.Now().Unix())}
 
 		i := len(parentDirs) - 1
 		for i >= 0 {
-			newParentKey = parentDirs[i].Put(filename, metadata)
+			newParentKey, childrenSize = parentDirs[i].Put(filename, metadata)
+			length = self.cache.Get(newParentKey).resource.GetLength()
 			// update metadata to point to new metadata which points to newParentKey
-			metadata = &FileMetadata{Length: proto.Int64(0), Key: newParentKey.AsBytes(), IsDir: proto.Bool(true)}
+			metadata = &FileMetadata{TotalSize: proto.Int64(childrenSize + length), Size: proto.Int64(length), Key: newParentKey.AsBytes(), IsDir: proto.Bool(true), CreationTime: proto.Int64(time.Now().Unix())}
 			filename = path.path[i]
 			i -= 1
 		}
 	}
 
-	newParentMetadata := &FileMetadata{Length: proto.Int64(0), Key: newParentKey.AsBytes(), IsDir: proto.Bool(true)}
+	if *newParentKey == *EMPTY_DIR_KEY {
+		length = 0
+	} else {
+		length = self.cache.Get(newParentKey).resource.GetLength()
+	}
+	newParentMetadata := &FileMetadata{TotalSize: proto.Int64(childrenSize + length), Size: proto.Int64(length), Key: newParentKey.AsBytes(), IsDir: proto.Bool(true), CreationTime: proto.Int64(time.Now().Unix())}
 
 	self.roots.Set(path.path[0], newParentMetadata)
 	return nil
@@ -641,6 +664,7 @@ func (self *AtomicState) unsafeLink(key *Key, path *Path, isDir bool) error {
 func (self *AtomicState) Link(key *Key, path *Path, isDir bool) error {
 	self.lock.Lock()
 	defer self.lock.Unlock()
+
 	return self.unsafeLink(key, path, isDir)
 }
 
@@ -658,7 +682,7 @@ func (self *AtomicState) Unlink(path *Path) error {
 			return err
 		}
 
-		newParentDirKey := parentDir.Remove(filename)
+		newParentDirKey, _ := parentDir.Remove(filename)
 		return self.unsafeLink(newParentDirKey, parentPath, true)
 	}
 

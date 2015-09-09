@@ -233,22 +233,37 @@ func CreateAnonymousRefLeaf(chunks ChunkService, metadatas []*FileMetadata) *Key
 	return writeLeaf(chunks, leaf)
 }
 
-func (d *LeafDir) Put(name string, metadata *FileMetadata) *Key {
+func (d *LeafDir) Put(name string, metadata *FileMetadata) (*Key, int64) {
 	leaf := d.readLeaf(d.key)
 	if metadata == nil {
 		panic(fmt.Sprintf(">>>> metadata = %s\n", metadata))
 	}
 	newLeaf := leaf.insert(&LeafEntry{name: name, metadata: metadata})
-	return d.writeLeaf(newLeaf)
+
+	totalSize := newLeaf.GetTotalSize()
+	return d.writeLeaf(newLeaf), totalSize
 }
 
-func (d *LeafDir) Remove(name string) *Key {
+func (d *Leaf) 	GetTotalSize() int64 {
+	var totalSize int64
+	for _, e := range d.entries {
+		totalSize += e.metadata.GetTotalSize()
+	}
+	return totalSize
+}
+
+func (d *LeafDir) GetTotalSize() int64 {
+	leaf := d.readLeaf(d.key)
+	return leaf.GetTotalSize()
+}
+
+func (d *LeafDir) Remove(name string) (*Key, int64) {
 	leaf := d.readLeaf(d.key)
 	newLeaf := leaf.remove(name)
 	if newLeaf == nil {
-		return d.key
+		return d.key, leaf.GetTotalSize()
 	} else {
-		return d.writeLeaf(newLeaf)
+		return d.writeLeaf(newLeaf), newLeaf.GetTotalSize()
 	}
 }
 

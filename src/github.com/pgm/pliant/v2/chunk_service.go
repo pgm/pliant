@@ -91,6 +91,10 @@ func (r *MemResource) AsBytes() []byte {
 	return r.data
 }
 
+func (r *MemResource) GetLength() int64 {
+	return int64(len(r.data))
+}
+
 func (r *MemResource) GetReader() io.Reader {
 	return bytes.NewBuffer(r.data)
 }
