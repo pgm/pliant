@@ -128,6 +128,30 @@ func (ac *AtomicClient) GetKey(path string, key *string) error {
 	return nil
 }
 
+type StatResponse struct {
+	Size             int64
+	Key              []byte
+	CreationTime     int64
+	IsDir            bool
+	TotalSize        int64
+}
+
+func (ac *AtomicClient) Stat(path string, result *StatResponse) error {
+	parsedPath := NewPath(path)
+	metadata, err := ac.atomic.GetMetadata(parsedPath)
+	if err != nil {
+		return err
+	}
+
+	result.Size = metadata.GetSize()
+	result.Key = metadata.GetKey()
+	result.CreationTime = metadata.GetCreationTime()
+	result.IsDir = metadata.GetIsDir()
+	result.TotalSize = metadata.GetTotalSize()
+
+	return nil
+}
+
 func (ac *AtomicClient) GetLocalPath(path string, localPath *string) error {
 	parsedPath := NewPath(path)
 	metadata, err := ac.atomic.GetMetadata(parsedPath)
