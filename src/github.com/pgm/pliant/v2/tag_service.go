@@ -26,3 +26,19 @@ func (m *MemTagService) Put(tag string, key *Key) {
 
 	m.tags[tag] = key
 }
+
+func (m *MemTagService) ForEach(callback func(name string, key *Key)) {
+	m.lock.Lock()
+
+	mapCopy := make(map[string] *Key)
+	for k,v := range m.tags {
+		mapCopy[k] = v
+	}
+
+	m.lock.Unlock()
+
+	for k,v := range mapCopy {
+		callback(k, v)
+	}
+}
+

@@ -11,6 +11,6 @@ type ProtobufSuite struct{}
 var _ = Suite(&ProtobufSuite{})
 
 func (s *ProtobufSuite) TestProtobuf(c *C) {
-	buffer := PackFileMetadata(&FileMetadata{Length: proto.Int64(1)})
+	buffer := PackFileMetadata(&FileMetadata{Size: proto.Int64(1)})
 	UnpackFileMetadata(bytes.NewBuffer(buffer))
 }

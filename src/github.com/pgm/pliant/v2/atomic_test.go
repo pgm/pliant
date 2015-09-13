@@ -23,8 +23,18 @@ func fetchNamesFromIter(it Iterator) []string {
 	return names
 }
 
+func newCache(c *C) *filesystemCacheDB {
+	root := c.MkDir()
+	db, err := InitDb(root + "/db.bolt")
+	if err != nil {
+		panic(err.Error())
+	}
+	cache, _ := NewFilesystemCacheDB(root, db)
+		return cache
+}
+
 func (*AtomicSuite) TestChunkCache(c *C) {
-	cache, _ := NewFilesystemCacheDB(c.MkDir())
+	cache := newCache(c)
 	chunks := NewChunkCache(NewMemChunkService(), cache)
 
 	aRes := NewMemResource([]byte("A"))
@@ -40,11 +50,12 @@ func (*AtomicSuite) TestChunkCache(c *C) {
 }
 
 func (s *AtomicSuite) TestAtomicDirOps(c *C) {
-	cache, _ := NewFilesystemCacheDB(c.MkDir())
+	cache := newCache(c)
 	chunks := NewChunkCache(NewMemChunkService(), cache)
 	ds := NewLeafDirService(chunks)
 	tags := NewMemTagService()
-	as := NewAtomicState(ds, chunks, cache, tags)
+	roots := NewMemRootMap()
+	as := NewAtomicState(ds, chunks, cache, tags, roots)
 	ac := &AtomicClient{atomic: as}
 
 	defer func() {
@@ -84,11 +95,12 @@ func (s *AtomicSuite) TestAtomicDirOps(c *C) {
 }
 
 func (s *AtomicSuite) TestAtomicFileOps(c *C) {
-	cache, _ := NewFilesystemCacheDB(c.MkDir())
+	cache := newCache(c)
 	chunks := NewChunkCache(NewMemChunkService(), cache)
 	ds := NewLeafDirService(chunks)
 	tags := NewMemTagService()
-	as := NewAtomicState(ds, chunks, cache, tags)
+	roots := NewMemRootMap()
+	as := NewAtomicState(ds, chunks, cache, tags, roots)
 	ac := &AtomicClient{atomic: as}
 
 	tempFile := "tmpfile"
@@ -118,17 +130,19 @@ func (s *AtomicSuite) TestPush(c *C) {
 	fmt.Printf("TestPush start\n")
 	remoteChunks := NewMemChunkService()
 	tags := NewMemTagService()
+	roots := NewMemRootMap()
 
-	cache1, _ := NewFilesystemCacheDB(c.MkDir())
+	cache1 := newCache(c)
 	chunks1 := NewChunkCache(remoteChunks, cache1)
 	ds1 := NewLeafDirService(chunks1)
-	as1 := NewAtomicState(ds1, chunks1, cache1, tags)
+	as1 := NewAtomicState(ds1, chunks1, cache1, tags, roots)
 	ac1 := &AtomicClient{atomic: as1}
 
-	cache2, _ := NewFilesystemCacheDB(c.MkDir())
+	cache2 := newCache(c)
+	fmt.Printf("cache1=%p, cache2=%p\n", cache1, cache2)
 	chunks2 := NewChunkCache(remoteChunks, cache2)
 	ds2 := NewLeafDirService(chunks2)
-	as2 := NewAtomicState(ds2, chunks2, cache2, tags)
+	as2 := NewAtomicState(ds2, chunks2, cache2, tags, roots)
 	ac2 := &AtomicClient{atomic: as2}
 
 	tempFile := "tmpfile"
@@ -142,8 +156,10 @@ func (s *AtomicSuite) TestPush(c *C) {
 	err := ac1.PutLocalPath(&PutLocalPathArgs{LocalPath: tempFile, DestPath: "a/b"}, &result)
 	c.Assert(err, Equals, nil)
 
+	fmt.Printf("About to push\n")
 	ac1.Push(&PushArgs{Source: "a", Tag: "tag"}, &result)
-	remoteChunks.PrintDebug()
+	//remoteChunks.PrintDebug()
+	fmt.Printf("About to pull\n")
 	ac2.Pull(&PullArgs{Tag: "tag", Destination: "z"}, &result)
 	as2.DumpDebug()
 

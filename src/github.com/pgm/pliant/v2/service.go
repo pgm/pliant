@@ -6,30 +6,44 @@ import (
 	"net/rpc"
 	"net/rpc/jsonrpc"
 	"os"
-	"net/http"
-	"code.google.com/p/go.net/websocket"
-	"fmt"
+//	"net/http"
+//	"code.google.com/p/go.net/websocket"
+//	"fmt"
 )
 
-func StartJsonRpc(ac *AtomicClient) {
-	server := rpc.NewServer()
-	server.Register(ac)
-	//server.
-//	rpc.Register(&ac)
-
-	mux := http.NewServeMux()
-	mux.Handle("/conn", websocket.Handler(func (ws *websocket.Conn) {
-			fmt.Printf("server: %s\n", server)
-			server.ServeCodec(jsonrpc.NewServerCodec(ws))
-		}))
-	httpserver := &http.Server{Addr: "localhost:7788", Handler: mux, }
-	httpserver.ListenAndServe()
+func ServerAccept(server *rpc.Server, lis net.Listener) {
+	for {
+		conn, err := lis.Accept()
+		if err != nil {
+			log.Fatal("rpc.Serve: accept:", err.Error()) // TODO(r): exit?
+		}
+		go server.ServeCodec(jsonrpc.NewServerCodec(conn))
+	}
 }
 
-func StartServer(bindAddr string, atomic Atomic) error {
+func StartJsonRpc(bindAddr string, ac *AtomicClient) error {
+	server := rpc.NewServer()
+	server.Register(ac)
+
+	l, err := net.ListenUnix("unix", &net.UnixAddr{bindAddr, "unix"})
+	if err != nil {
+		return err
+	}
+	defer os.Remove(bindAddr)
+
+	log.Printf("Ready to accept requests via %s\n", bindAddr)
+
+	ServerAccept(server, l)
+
+	return nil
+}
+
+func StartServer(bindAddr string, jsonBindAddr string, atomic Atomic) error {
 	ac := AtomicClient{atomic: atomic}
 
-	go StartJsonRpc(&ac)
+	if jsonBindAddr != "" {
+		go StartJsonRpc(jsonBindAddr, &ac)
+	}
 
 	server := rpc.NewServer()
 	server.Register(&ac)

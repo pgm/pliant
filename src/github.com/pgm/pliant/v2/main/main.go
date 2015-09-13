@@ -12,12 +12,13 @@ import (
 	"os"
 	"strings"
 	"time"
+	"path/filepath"
 )
 
-const SERVER_BINDING string = "pliantctl"
+const SERVER_BINDING string = "/tmp/pliantctl"
 
-func connectToServer() *rpc.Client {
-	client, err := rpc.Dial("unix", SERVER_BINDING)
+func connectToServer(addr string) *rpc.Client {
+	client, err := rpc.Dial("unix", addr)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -54,12 +55,16 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "pliant"
 	app.Usage = "pliant client"
+	app.Flags = []cli.Flag {
+		&cli.StringFlag{Name: "addr", Value: SERVER_BINDING, Usage: "The path to bind for communication"},
+		&cli.StringFlag{Name: "jsonaddr", Value: "", Usage: "The path to bind for communication"},
+	}
 	app.Commands = []cli.Command{
 		{
 			Name:  "key",
 			Usage: "print the key for a given path",
 			Action: func(c *cli.Context) {
-				ac := connectToServer()
+				ac := connectToServer(c.GlobalString("addr"))
 				var key string
 				expectArgs(c, false, "path")
 				path := c.Args().First()
@@ -71,7 +76,7 @@ func main() {
 			Name:  "mkdir",
 			Usage: "make an empty directory",
 			Action: func(c *cli.Context) {
-				ac := connectToServer()
+				ac := connectToServer(c.GlobalString("addr"))
 				var key string
 				expectArgs(c, false, "path")
 				path := c.Args().First()
@@ -85,12 +90,14 @@ func main() {
 			Action: func(c *cli.Context) {
 				expectArgs(c, false, "configFile")
 				filename := c.Args().Get(0)
+				jsonBindAddr := c.GlobalString("jsonaddr")
 
 				cfg := struct {
 					Minion struct {
 						MasterAddress string
 						AuthSecret    string
 						CachePath     string
+						PliantServiceAddress  string
 					}
 				}{}
 
@@ -104,6 +111,9 @@ func main() {
 				}
 				fd.Close()
 
+				//bindAddr := c.GlobalString("addr")
+				bindAddr := cfg.Minion.PliantServiceAddress
+
 				// contact the master and get the config
 				tagsvcClient := tagsvc.NewClient(cfg.Minion.MasterAddress, []byte(cfg.Minion.AuthSecret))
 				config, err := tagsvcClient.GetConfig()
@@ -111,8 +121,8 @@ func main() {
 					panic(err.Error())
 				}
 
-				if _, err := os.Stat(SERVER_BINDING); err == nil {
-					os.Remove(SERVER_BINDING)
+				if _, err := os.Stat(cfg.Minion.PliantServiceAddress); err == nil {
+					os.Remove(cfg.Minion.PliantServiceAddress)
 				}
 
 				root := cfg.Minion.CachePath
@@ -132,7 +142,7 @@ func main() {
 				chunks := v2.NewChunkCache(chunkService, cache)
 				ds := v2.NewLeafDirService(chunks)
 				as := v2.NewAtomicState(ds, chunks, cache, tags, v2.NewDbRootMap(db))
-				panicIfError(v2.StartServer(SERVER_BINDING, as))
+				panicIfError(v2.StartServer(bindAddr, jsonBindAddr, as))
 			},
 		},
 		{
@@ -193,7 +203,7 @@ func main() {
 			Name:  "link",
 			Usage: "link the given key into the specified path",
 			Action: func(c *cli.Context) {
-				ac := connectToServer()
+				ac := connectToServer(c.GlobalString("addr"))
 				var result string
 
 				expectArgs(c, false, "key", "path")
@@ -210,7 +220,7 @@ func main() {
 			Name:  "unlink",
 			Usage: "unlink remove specified path",
 			Action: func(c *cli.Context) {
-				ac := connectToServer()
+				ac := connectToServer(c.GlobalString("addr"))
 				var result string
 
 				expectArgs(c, false, "path")
@@ -225,7 +235,7 @@ func main() {
 			Name:  "local",
 			Usage: "Get local path to specified path",
 			Action: func(c *cli.Context) {
-				ac := connectToServer()
+				ac := connectToServer(c.GlobalString("addr"))
 				var result string
 
 				expectArgs(c, false, "path")
@@ -240,14 +250,19 @@ func main() {
 			Name:  "put",
 			Usage: "put local file into specified path",
 			Action: func(c *cli.Context) {
-				ac := connectToServer()
+				ac := connectToServer(c.GlobalString("addr"))
 				var result string
 
 				expectArgs(c, false, "localpath", "path")
 				localpath := c.Args().Get(0)
 				remotepath := c.Args().Get(1)
 
-				panicIfError(ac.Call("AtomicClient.PutLocalPath", &v2.PutLocalPathArgs{LocalPath: localpath, DestPath: remotepath}, &result))
+				absLocalPath, err := filepath.Abs(localpath)
+				if(err != nil) {
+					panic(err.Error())
+				}
+
+				panicIfError(ac.Call("AtomicClient.PutLocalPath", &v2.PutLocalPathArgs{LocalPath: absLocalPath, DestPath: remotepath}, &result))
 
 				println(result)
 			},
@@ -257,7 +272,7 @@ func main() {
 			Usage: "list files at specified directory",
 			Flags: []cli.Flag{cli.BoolFlag{Name: "l", Usage: "if set, will display details.  Otherwise only the names are displayed"}},
 			Action: func(c *cli.Context) {
-				ac := connectToServer()
+				ac := connectToServer(c.GlobalString("addr"))
 				var result []v2.ListFilesRecord
 
 				expectArgs(c, false, "path")
@@ -287,7 +302,7 @@ func main() {
 			Name:  "push",
 			Usage: "push source tag ",
 			Action: func(c *cli.Context) {
-				ac := connectToServer()
+				ac := connectToServer(c.GlobalString("addr"))
 
 				var result string
 
@@ -302,7 +317,7 @@ func main() {
 			Name:  "pull",
 			Usage: "pull tag destination",
 			Action: func(c *cli.Context) {
-				ac := connectToServer()
+				ac := connectToServer(c.GlobalString("addr"))
 
 				var result string
 				expectArgs(c, false, "label", "path")
@@ -316,7 +331,7 @@ func main() {
 			Name:  "roots",
 			Usage: "list roots",
 			Action: func(c *cli.Context) {
-				ac := connectToServer()
+				ac := connectToServer(c.GlobalString("addr"))
 
 				var prefix string = ""
 				var result []v2.ListRootsRecord
