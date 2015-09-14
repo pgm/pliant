@@ -644,10 +644,6 @@ func (self *AtomicState) unsafeLink(key *Key, path *Path, isDir bool) error {
 		childrenSize = 0
 	} else {
 		resource := self.chunks.Get(key)
-//		if entry == nil {
-//			panic(fmt.Sprintf("unsafeLink(%s, %s, %d), could not find entry with given key", key, path, isDir))
-//		}
-//		length = entry.resource.GetLength()
 		length = resource.GetLength()
 		if isDir {
 			childrenSize = self.dirService.GetDirectory(key).GetTotalSize()
