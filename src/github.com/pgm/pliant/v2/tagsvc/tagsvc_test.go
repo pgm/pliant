@@ -89,7 +89,7 @@ func (s *TagSvcSuite) TestSimpleGC(c *C) {
 	chunks.Put(&fileKey3, v2.NewMemResource(make([]byte, 1)))
 	dirService := v2.NewLeafDirService(chunks)
 	dir := dirService.GetDirectory(v2.EMPTY_DIR_KEY)
-	dirKey := dir.Put("a", &v2.FileMetadata{Length: proto.Int64(1), Key: fileKey1.AsBytes(), IsDir: proto.Bool(false)})
+	dirKey, _ := dir.Put("a", &v2.FileMetadata{Size: proto.Int64(1), Key: fileKey1.AsBytes(), IsDir: proto.Bool(false)})
 	root.Set("1", dirKey)
 
 	fmt.Printf("GC\n")
@@ -112,12 +112,14 @@ func (s *TagSvcSuite) TestClientServer(c *C) {
 		Bucket:          "bucket",
 		MasterPort:      0,
 		Prefix:          "prefix",
-		PersistPath:     s.tempfile}
+		PersistPath:     s.tempfile,
+		AuthSecret:      "x",
+	}
 
 	l, err := StartServer(config)
 	c.Assert(err, IsNil)
 
-	client := NewClient(l.Addr().String())
+	client := NewClient(l.Addr().String(), []byte("x"))
 	vconfig, err := client.GetConfig()
 	c.Assert(err, IsNil)
 	c.Assert(vconfig, DeepEquals, config)
