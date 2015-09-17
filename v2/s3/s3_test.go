@@ -23,6 +23,13 @@ var _ = fmt.Sprintf("hello!")
 
 func Test(t *testing.T) { TestingT(t) }
 
+func (s *S3Suite) SetUpSuite(c *C) {
+	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
+	if accessKey == "" {
+		c.Skip("AWS_ACCESS_KEY_ID not set, skipping S3")
+	}
+}
+
 func (s *S3Suite) TearDownTest(c *C) {
 	os.RemoveAll(s.tempdir)
 }
@@ -55,7 +62,10 @@ func (s *S3Suite) TestSimpleS3ChunkOps(c *C) {
 		return f.Name()
 	}
 
-	p := NewS3ChunkService("s3.amazonaws.com", s.bucket, s.prefix, getDestFn)
+	AccessKey := os.Getenv("AWS_ACCESS_KEY_ID")
+	SecretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+
+	p := NewS3ChunkService(AccessKey, SecretKey, "s3.amazonaws.com", s.bucket, s.prefix, getDestFn)
 
 	it := p.Iterate()
 	c.Assert(!it.HasNext(), Equals, true)

@@ -158,9 +158,10 @@ func listenForever(config *Config, l net.Listener) {
 		log.Printf("Serve starting")
 
 		conn, err := l.Accept()
-				if err != nil {
-					fmt.Printf("Accept failed %s", err)
-				}
+		if err != nil {
+			fmt.Printf("Accept failed %s", err)
+			break
+		}
 
 		go handleConnection(config, conn)
 	}
@@ -175,7 +176,6 @@ func StartServer(config *Config) (net.Listener, error) {
 		log.Fatal("listen error:", e)
 		return nil, e
 	}
-
 
 	go listenForever(config, l)
 
