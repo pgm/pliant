@@ -2,13 +2,14 @@ package s3
 
 import (
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
-	ss "github.com/aws/aws-sdk-go/service/s3"
-	"github.com/pgm/pliant/v2"
-	. "gopkg.in/check.v1"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/aws/aws-sdk-go/aws/defaults"
+	ss "github.com/aws/aws-sdk-go/service/s3"
+	"github.com/pgm/pliant/v2"
+	. "gopkg.in/check.v1"
 )
 
 type S3Suite struct {
@@ -41,7 +42,7 @@ func (s *S3Suite) SetUpTest(c *C) {
 		panic(err.Error())
 	}
 
-	s3c := ss.New(aws.DefaultConfig)
+	s3c := ss.New(defaults.DefaultConfig)
 	listObjectsInputs := &ss.ListObjectsInput{Bucket: &s.bucket, Prefix: &s.prefix}
 	s3c.ListObjectsPages(listObjectsInputs, func(page *ss.ListObjectsOutput, lastPage bool) (shouldContinue bool) {
 		for _, obj := range page.Contents {
