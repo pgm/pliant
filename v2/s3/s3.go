@@ -12,7 +12,7 @@ import (
 
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/defaults"
 	ss "github.com/aws/aws-sdk-go/service/s3"
 )
 
@@ -127,7 +127,7 @@ func (c *S3KeyIterator) Next() *v2.Key {
 }
 
 func (c *S3ChunkService) Iterate() v2.KeyIterator {
-	s3c := ss.New(aws.DefaultConfig)
+	s3c := ss.New(defaults.DefaultConfig)
 	it := &S3KeyIterator{Bucket: c.Bucket, Prefix: c.Prefix + "/", MaxFetchKeys: c.MaxFetchKeys, S3C: s3c}
 	it.fetchNext(nil)
 	return it
