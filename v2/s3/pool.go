@@ -1,5 +1,6 @@
 package s3
 
+/*
 import (
 	"sync"
 	"io"
@@ -80,3 +81,4 @@ func (c *Client) ForgetAll() {
 	}
 	c.lock.Unlock()
 }
+*/

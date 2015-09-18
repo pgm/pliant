@@ -2,17 +2,18 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"net/rpc"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
 	"github.com/codegangsta/cli"
 	"github.com/pgm/pliant/v2"
 	"github.com/pgm/pliant/v2/s3"
 	"github.com/pgm/pliant/v2/tagsvc"
 	gcfg "gopkg.in/gcfg.v1"
-	"log"
-	"net/rpc"
-	"os"
-	"strings"
-	"time"
-	"path/filepath"
 )
 
 const SERVER_BINDING string = "/tmp/pliantctl"
@@ -52,10 +53,11 @@ func expectArgs(c *cli.Context, hasOptionalAdditional bool, reqArgNames ...strin
 }
 
 func main() {
+	fmt.Printf("main\n")
 	app := cli.NewApp()
 	app.Name = "pliant"
 	app.Usage = "pliant client"
-	app.Flags = []cli.Flag {
+	app.Flags = []cli.Flag{
 		&cli.StringFlag{Name: "addr", Value: SERVER_BINDING, Usage: "The path to bind for communication"},
 		&cli.StringFlag{Name: "jsonaddr", Value: "", Usage: "The path to bind for communication"},
 	}
@@ -94,10 +96,10 @@ func main() {
 
 				cfg := struct {
 					Minion struct {
-						MasterAddress string
-						AuthSecret    string
-						CachePath     string
-						PliantServiceAddress  string
+						MasterAddress        string
+						AuthSecret           string
+						CachePath            string
+						PliantServiceAddress string
 					}
 				}{}
 
@@ -258,7 +260,7 @@ func main() {
 				remotepath := c.Args().Get(1)
 
 				absLocalPath, err := filepath.Abs(localpath)
-				if(err != nil) {
+				if err != nil {
 					panic(err.Error())
 				}
 

@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/boltdb/bolt"
-	"github.com/golang/protobuf/proto"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
-	"path/filepath"
+
+	"github.com/boltdb/bolt"
+	"github.com/golang/protobuf/proto"
 )
 
 var NO_SUCH_PATH = errors.New("No such path")
@@ -88,10 +89,10 @@ func (ac *AtomicClient) ListRoots(prefix string, resultPtr *[]ListRootsRecord) e
 }
 
 type ListFilesRecord struct {
-	Name   string
-	IsDir  bool
-	Size int64
-	TotalSize int64
+	Name         string
+	IsDir        bool
+	Size         int64
+	TotalSize    int64
 	CreationTime int64
 }
 
@@ -129,11 +130,11 @@ func (ac *AtomicClient) GetKey(path string, key *string) error {
 }
 
 type StatResponse struct {
-	Size             int64
-	Key              []byte
-	CreationTime     int64
-	IsDir            bool
-	TotalSize        int64
+	Size         int64
+	Key          []byte
+	CreationTime int64
+	IsDir        bool
+	TotalSize    int64
 }
 
 func (ac *AtomicClient) Stat(path string, result *StatResponse) error {
@@ -590,8 +591,14 @@ func (self *AtomicState) GetDirectoryIterator(path *Path) (Iterator, error) {
 }
 
 func (self *AtomicState) GetMetadata(path *Path) (*FileMetadata, error) {
+	fmt.Printf("GetMetadata(%s)\n", path)
 	self.lock.Lock()
 	defer self.lock.Unlock()
+
+	if path.IsRoot() {
+		var key Key
+		return &FileMetadata{TotalSize: proto.Int64(0), Size: proto.Int64(0), Key: key.AsBytes(), IsDir: proto.Bool(true), CreationTime: proto.Int64(time.Now().Unix())}, nil
+	}
 
 	parentPath, filename := path.Split()
 

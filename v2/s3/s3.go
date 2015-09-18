@@ -1,14 +1,17 @@
 package s3
 
 import (
-	"github.com/rlmcpherson/s3gof3r"
 	"io"
 	"os"
+
+	"github.com/rlmcpherson/s3gof3r"
 	//	"bytes"
-	"github.com/pgm/pliant/v2"
 	"net/http"
 
+	"github.com/pgm/pliant/v2"
+
 	"fmt"
+
 	"github.com/aws/aws-sdk-go/aws"
 	ss "github.com/aws/aws-sdk-go/service/s3"
 )
@@ -147,7 +150,7 @@ func (c *S3ChunkService) Get(key *v2.Key) v2.Resource {
 	path := c.Prefix + "/" + key.String()
 	r, _, err := b.GetReader(path, conf)
 	if err != nil {
-		panic("Error GetReader")
+		panic(fmt.Sprintf("Error GetReader: %s", err))
 	}
 	defer r.Close()
 
