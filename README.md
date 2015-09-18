@@ -13,7 +13,7 @@ The core ideas are:
   - Files are only uploaded upon a "push" operation.  At which time all files not yet stored in S3 are uploaded.
   - Files are lazily downloaded on demand and kept in the arena until the max quota is exceeded.
   - Metadata about files is similarly stored in immutable btree blocks.  Any modifications to data or metadata results in copy-on-write logic.
-  - This makes snapshots trivial as knowing the identity of the root node defines an immutable copy of an entire tree.
+  - This makes snapshots trivial as knowing the key of the root block directory node.  
   - This also makes coping with eventual consistency trivial.  Objects are never deleted, so knowing a block address implies the data will eventually appear at that address.  
   - Garbage collection is performed to reclaim space in the object store as well as the local cache arena
 
