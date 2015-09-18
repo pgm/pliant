@@ -1,70 +1,20 @@
 # pliant
 
-TODO:
-	add goroutine to StartMaster to clears expired leases
-	add persistence of Leases and roots to Master (maybe as an append log for now?)
-	add cmd start master proc (StartMaster)
-	add method to query for all keys/leases
+Pliant is an experiment in creating a service to help bridge software which assumes data is accessible on the filesystem and remote object stores such as S3 and GCS.
 
-	add to AtomicState:
-	    local GC
-	    registration and renewal of leased keys (Maybe GC should determine lease list)
-	    persistence of local cache state
+The design choices are targeting examples with:
+  - Write once batch processing (input files consumed and new files writen)
+  - Read heavy workloads
+  - Large scale, parallel, share-nothing workloads
 
+The core ideas are:
+  - The "pliant" service mirrors objects from S3 locally in a managed arena.  All read-only processing can use the version from there.
+  - Files are atomically added only after they are fully written.  There is no mechanism for updating.
+  - Files are only uploaded upon a "push" operation.  At which time all files not yet stored in S3 are uploaded.
+  - Files are lazily downloaded on demand and kept in the arena until the max quota is exceeded.
+  - Metadata about files is similarly stored in immutable btree blocks.  Any modifications to data or metadata results in copy-on-write logic.
+  - This makes snapshots trivial as knowing the identity of the root node defines an immutable copy of an entire tree.
+  - This also makes coping with eventual consistency trivial.  Objects are never deleted, so knowing a block address implies the data will eventually appear at that address.  
+  - Garbage collection is performed to reclaim space in the object store as well as the local cache arena
 
-    Add creation leases (has effect of treating any keys created in the window as "marked")
-	Create(timeout) -> lease_id (Or should it use root block id?)
-	Renew(lease_id, timeout)  (Timeout = 0 to clear lease)
-
-	Change upload to create lease upon start
-	Periodically renew lease while upload is ongoing
-	Cancel lease after upload is complete.  Only if all renews are successful, is upload considered success.   (Should we avoid setting blocks in local cache as "in remote" until successful upload?)
-
-    Add persistence of labels and leases.  (And recovery to load them on startup)
-    Change minion to use master for label service.
-    Collect stats during GC
-    Collect stats during push
-    Collect stats during pull
-    Report more metadata in ls
-    Fuzzying test client
-
-    Improve error handling
-    Add fuse client
-
-
-
-----------------
-
-
-Time to switch to a B-Tree for directories:
-
-min block size
-max block size
-
-branch:
-element_count
-list of (is_leaf,hash) # name-range
-
-leaf:
-element_count
-list of (name,hash,flags,timestamp,length)
-
-# copy on write
-Insert(tree, name, value) -> new root, list of new blocks
-# may require splitting leaf.  If leaf > max block, split leaf in half and replace entry in parent.   If parent branch > max block size, split branch
-
-Delete(tree, name)
-# may require merging branches/leaves
-if after delete, leaf < min block size, merge with adjacent entry.   If after merge, leaf > max block, split in half
-
-Walk(tree)
-Get(tree, name) -> entries
-
-kv Get(key) -> value
-(if key does not exist, hard error)
-kv Put(key, value)
-(if key exists, no-op or error)
-
-TreeOp = {settings: max block, min block}
-
-
+The "pliant" command can be used to perform operations such as "push" and "pull".   There is also a FUSE client which makes the files stored in pliant visible as a filesystem.
