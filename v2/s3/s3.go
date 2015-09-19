@@ -133,7 +133,7 @@ func (c *S3ChunkService) Iterate() v2.KeyIterator {
 	return it
 }
 
-func (c *S3ChunkService) Get(key *v2.Key) v2.Resource {
+func (c *S3ChunkService) Get(key *v2.Key) (v2.Resource, error) {
 	conf := new(s3gof3r.Config)
 	*conf = *s3gof3r.DefaultConfig
 
@@ -163,10 +163,10 @@ func (c *S3ChunkService) Get(key *v2.Key) v2.Resource {
 		panic("Error creating resource")
 	}
 
-	return resource
+	return resource, nil
 }
 
-func (c *S3ChunkService) Put(key *v2.Key, resource v2.Resource) {
+func (c *S3ChunkService) Put(key *v2.Key, resource v2.Resource) error {
 	conf := new(s3gof3r.Config)
 	*conf = *s3gof3r.DefaultConfig
 	s3 := s3gof3r.New(c.EndPoint, c.Keys)
@@ -186,6 +186,8 @@ func (c *S3ChunkService) Put(key *v2.Key, resource v2.Resource) {
 	defer w.Close()
 
 	if _, err = io.Copy(w, r); err != nil {
-		panic("Error Copying")
+		return err
 	}
+
+	return nil
 }

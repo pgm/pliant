@@ -1,5 +1,6 @@
 package deep
 
+/*
 import "github.com/pgm/pliant/v2"
 
 type Entry struct {
@@ -68,3 +69,4 @@ func insert(node *Node, name string, key *v2.FileMetadata) {
 func remove(node *Node, name string) {
 
 }
+*/

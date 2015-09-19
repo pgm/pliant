@@ -62,11 +62,11 @@ type Directory interface {
 	// An immutable map of name -> FileMetadata.  Mutations (Put, Remove) return the key of newly created Directory
 	// All methods threadsafe because they never mutate structures and all parameters are immutable.
 
-	Get(name string) *FileMetadata
-	Put(name string, metadata *FileMetadata) (*Key, int64)
-	Remove(name string) (*Key, int64)
+	Get(name string) (*FileMetadata, error)
+	Put(name string, metadata *FileMetadata) (*Key, int64, error)
+	Remove(name string) (*Key, int64, error)
 	Iterate() Iterator
-	GetTotalSize() int64
+	GetTotalSize() (int64, error)
 }
 
 type Iterator interface {
@@ -90,8 +90,8 @@ type FileResource struct {
 
 type ChunkService interface {
 	// all methods are threadsafe
-	Get(key *Key) Resource
-	Put(key *Key, resource Resource)
+	Get(key *Key) (Resource, error)
+	Put(key *Key, resource Resource) error
 }
 
 type KeyIterator interface {
@@ -105,8 +105,8 @@ type IterableChunkService interface {
 }
 
 type TagService interface {
-	Put(name string, key *Key)
-	Get(name string) *Key
+	Put(name string, key *Key) error
+	Get(name string) (*Key, error)
 	ForEach(callback func(name string, key *Key))
 }
 

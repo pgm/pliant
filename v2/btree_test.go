@@ -2,8 +2,9 @@ package v2
 
 import (
 	"fmt"
-	. "gopkg.in/check.v1"
 	"testing"
+
+	. "gopkg.in/check.v1"
 )
 
 type BtreeSuite struct{}
@@ -36,23 +37,23 @@ func (s *BtreeSuite) TestBtreeInserts(c *C) {
 	d0 := ds.GetDirectory(EMPTY_DIR_KEY)
 
 	metadata := &FileMetadata{}
-	key1, _ := d0.Put("z", metadata)
+	key1, _, _ := d0.Put("z", metadata)
 	d1 := ds.GetDirectory(key1)
-	key2, _ := d1.Put("y", metadata)
+	key2, _, _ := d1.Put("y", metadata)
 	d2 := ds.GetDirectory(key2)
-	key3, _ := d2.Put("t", metadata)
+	key3, _, _ := d2.Put("t", metadata)
 	d3 := ds.GetDirectory(key3)
-	key4, _ := d3.Put("x", metadata)
+	key4, _, _ := d3.Put("x", metadata)
 	d4 := ds.GetDirectory(key4)
 
 	e1 := [...]string{"t", "x", "y", "z"}
 	c.Assert(fetchNames(d4), DeepEquals, e1[:])
 
-	key5, _ := d4.Remove("t")
+	key5, _, _ := d4.Remove("t")
 	d5 := ds.GetDirectory(key5)
-	key6, _ := d5.Remove("y")
+	key6, _, _ := d5.Remove("y")
 	d6 := ds.GetDirectory(key6)
-	key7, _ := d6.Remove("z")
+	key7, _, _ := d6.Remove("z")
 	d7 := ds.GetDirectory(key7)
 
 	e2 := [...]string{"x"}
@@ -69,7 +70,7 @@ func (s *BtreeSuite) TestBtreeDirService(c *C) {
 	c.Assert(it.HasNext(), Equals, false)
 
 	metadata := &FileMetadata{}
-	key1, _ := d0.Put("x", metadata)
+	key1, _, _ := d0.Put("x", metadata)
 
 	// now we have a new directory with one entry
 	d1 := ds.GetDirectory(key1)
@@ -82,7 +83,7 @@ func (s *BtreeSuite) TestBtreeDirService(c *C) {
 	c.Assert(it1.HasNext(), Equals, false)
 
 	// now make sure remove basically works
-	key2, _ := d1.Remove("x")
+	key2, _, _ := d1.Remove("x")
 
 	d2 := ds.GetDirectory(key2)
 

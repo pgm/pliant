@@ -13,7 +13,7 @@ type MemChunkService struct {
 	chunks map[Key]Resource
 }
 
-func (c *MemChunkService) Get(key *Key) Resource {
+func (c *MemChunkService) Get(key *Key) (Resource, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -21,14 +21,17 @@ func (c *MemChunkService) Get(key *Key) Resource {
 	if resource == nil {
 		panic(fmt.Sprintf("Could not find key: %s", key))
 	}
-	return resource
+
+	return resource, nil
 }
 
-func (c *MemChunkService) Put(key *Key, resource Resource) {
+func (c *MemChunkService) Put(key *Key, resource Resource) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	c.chunks[*key] = resource
+
+	return nil
 }
 func NewMemChunkService() *MemChunkService {
 	return &MemChunkService{

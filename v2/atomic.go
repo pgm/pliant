@@ -30,7 +30,7 @@ type Atomic interface {
 
 	CreateResourceForLocalFile(localFile string) (Resource, error)
 
-	Pull(tag string, lease *Lease) *Key
+	Pull(tag string, lease *Lease) (*Key, error)
 	Push(key *Key, new_tag string, lease *Lease) error
 
 	ForEachRoot(prefix string, callback func(name string, key *Key)) error
@@ -64,7 +64,10 @@ type PullArgs struct {
 }
 
 func (ac *AtomicClient) Pull(args *PullArgs, result *string) error {
-	key := ac.atomic.Pull(args.Tag, &Lease{})
+	key, err := ac.atomic.Pull(args.Tag, &Lease{})
+	if err != nil {
+		return err
+	}
 
 	parsedPath := NewPath(args.Destination)
 	return ac.atomic.Link(key, parsedPath, true)
@@ -399,10 +402,9 @@ func (self *AtomicState) GC() {
 	panic("unimp")
 }
 
-func (self *AtomicState) Pull(tag string, lease *Lease) *Key {
-	key := self.tags.Get(tag)
-
-	return key
+func (self *AtomicState) Pull(tag string, lease *Lease) (*Key, error) {
+	key, err := self.tags.Get(tag)
+	return key, err
 }
 
 func (self *AtomicState) DumpDebug() {
@@ -497,7 +499,10 @@ func (self *AtomicState) unsafeGetDirsFromPath(path *Path) ([]Directory, error) 
 		if i >= len(path.path) {
 			break
 		}
-		metadata := dir.Get(path.path[i])
+		metadata, err := dir.Get(path.path[i])
+		if err != nil {
+			return nil, err
+		}
 		if metadata == nil || !metadata.GetIsDir() {
 			return nil, NO_SUCH_PATH
 		}
@@ -616,14 +621,21 @@ func (self *AtomicState) GetMetadata(path *Path) (*FileMetadata, error) {
 			return nil, error
 		}
 
-		return parentDir.Get(filename), nil
+		metadata, err := parentDir.Get(filename)
+		if err != nil {
+			return nil, err
+		}
+		return metadata, nil
 	}
 }
 
 func (self *AtomicState) GetResource(key *Key) Resource {
-	entry := self.chunks.Get(key)
+	entry, err := self.chunks.Get(key)
+	// TODO: maybe GetResource needs to return an error too?
+	if err != nil {
+		panic(err.Error())
+	}
 	if entry == nil {
-		fmt.Printf("GetRes Could not find %s\n", key.String())
 		return nil
 	}
 	return entry
@@ -650,10 +662,14 @@ func (self *AtomicState) unsafeLink(key *Key, path *Path, isDir bool) error {
 		length = 0
 		childrenSize = 0
 	} else {
-		resource := self.chunks.Get(key)
+		resource, err := self.chunks.Get(key)
+		if err != nil {
+			return err
+		}
 		length = resource.GetLength()
 		if isDir {
-			childrenSize = self.dirService.GetDirectory(key).GetTotalSize()
+			dir := self.dirService.GetDirectory(key)
+			childrenSize, err = dir.GetTotalSize()
 		} else {
 			childrenSize = 0
 		}
@@ -677,7 +693,10 @@ func (self *AtomicState) unsafeLink(key *Key, path *Path, isDir bool) error {
 
 		i := len(parentDirs) - 1
 		for i >= 0 {
-			newParentKey, childrenSize = parentDirs[i].Put(filename, metadata)
+			newParentKey, childrenSize, err = parentDirs[i].Put(filename, metadata)
+			if err != nil {
+				return err
+			}
 			length = self.cache.Get(newParentKey).resource.GetLength()
 			// update metadata to point to new metadata which points to newParentKey
 			metadata = &FileMetadata{TotalSize: proto.Int64(childrenSize + length), Size: proto.Int64(length), Key: newParentKey.AsBytes(), IsDir: proto.Bool(true), CreationTime: proto.Int64(time.Now().Unix())}
@@ -718,7 +737,10 @@ func (self *AtomicState) Unlink(path *Path) error {
 			return err
 		}
 
-		newParentDirKey, _ := parentDir.Remove(filename)
+		newParentDirKey, _, err := parentDir.Remove(filename)
+		if err != nil {
+			return err
+		}
 		return self.unsafeLink(newParentDirKey, parentPath, true)
 	}
 

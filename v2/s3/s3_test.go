@@ -78,7 +78,7 @@ func (s *S3Suite) TestSimpleS3ChunkOps(c *C) {
 	resource := v2.NewMemResource(resourceContent)
 	p.Put(key, resource)
 
-	fetchedResource := p.Get(key)
+	fetchedResource, _ := p.Get(key)
 	c.Assert(fetchedResource.AsBytes(), DeepEquals, resourceContent)
 
 	it = p.Iterate()

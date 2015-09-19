@@ -5,13 +5,14 @@ import (
 	//	"github.com/boltdb/bolt"
 	"errors"
 	"fmt"
-	"github.com/boltdb/bolt"
-	"github.com/golang/protobuf/proto"
 	"io"
 	"io/ioutil"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/boltdb/bolt"
+	"github.com/golang/protobuf/proto"
 )
 
 type sourceEnum int
@@ -25,6 +26,7 @@ const (
 type cacheEntry struct {
 	source   sourceEnum
 	resource Resource
+	error    error
 }
 
 type cacheDB interface {
@@ -53,18 +55,18 @@ func NewChunkCache(remote ChunkService, local cacheDB) *ChunkCache {
 }
 
 func (c *ChunkCache) PushToRemote(key *Key) error {
-	fmt.Printf("**** PushToRemote %s\n", key.String())
-	resource := c.Get(key)
-	c.remote.Put(key, resource)
-	//	r := c.remote.Get(KeyFromBytes(key.AsBytes()))
-	//	if r == nil {
-	//		panic("failed put")
-	//	}
-	return nil
+	resource, err := c.Get(key)
+	if err != nil {
+		return err
+	}
+	err = c.remote.Put(key, resource)
+	return err
 }
 
-func (c *ChunkCache) Put(key *Key, resource Resource) {
+func (c *ChunkCache) Put(key *Key, resource Resource) error {
+	// TODO: local.Put should return an error
 	c.local.Put(key, &cacheEntry{source: LOCAL, resource: resource})
+	return nil
 }
 
 func (c *ChunkCache) isKeyBeingFetched(key *Key) bool {
@@ -72,10 +74,11 @@ func (c *ChunkCache) isKeyBeingFetched(key *Key) bool {
 	return keyInProgress
 }
 
-func (c *ChunkCache) Get(key *Key) Resource {
+func (c *ChunkCache) Get(key *Key) (Resource, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	var err error
 	var resource Resource
 
 	entry := c.local.Get(key)
@@ -87,15 +90,20 @@ func (c *ChunkCache) Get(key *Key) Resource {
 			resource = c.local.Get(key).resource
 		} else {
 			c.inProgress[*key] = key
-			resource = c.remote.Get(key)
-			c.local.Put(key, &cacheEntry{source: REMOTE, resource: resource})
+			resource, err = c.remote.Get(key)
+			if err == nil {
+				c.local.Put(key, &cacheEntry{source: REMOTE, resource: resource})
+			} else {
+				c.local.Put(key, &cacheEntry{source: REMOTE, error: err})
+			}
 			delete(c.inProgress, *key)
 			c.cond.Broadcast()
 		}
 	} else {
 		resource = entry.resource
+		err = entry.error
 	}
-	return resource
+	return resource, err
 }
 
 type memcacheDB struct {
@@ -244,7 +252,7 @@ func (c *filesystemCacheDB) Get(key *Key) *cacheEntry {
 			//			panic(fmt.Sprintf("Key %s did not exist in %s", key, c.db))
 			return NO_SUCH_KEY
 		} else {
-//			fmt.Printf("len(entryBuffer)=%d\n", len(entryBuffer))
+			//			fmt.Printf("len(entryBuffer)=%d\n", len(entryBuffer))
 		}
 		unpackCacheEntry(entryBuffer, &entry)
 
@@ -332,7 +340,7 @@ func (c *filesystemCacheDB) Put(key *Key, entry *cacheEntry) {
 	c.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(KEY_TO_FILENAME)
 		fsentryBuffer := packCacheEntry(fsentry)
-//		fmt.Printf("Put(%s, len(entry)=%d (%s)\n", key, len(fsentryBuffer), c.db)
+		//		fmt.Printf("Put(%s, len(entry)=%d (%s)\n", key, len(fsentryBuffer), c.db)
 		err := b.Put(key.AsBytes(), fsentryBuffer)
 		return err
 	})

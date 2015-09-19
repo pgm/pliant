@@ -2,10 +2,11 @@ package tagsvc
 
 import (
 	"fmt"
-	"github.com/pgm/pliant/v2"
-	"github.com/pgm/pliant/v2/s3"
 	"log"
 	"net"
+
+	"github.com/pgm/pliant/v2"
+	"github.com/pgm/pliant/v2/s3"
 	//"net/http"
 	"net/rpc"
 	//	"strconv"
@@ -154,7 +155,7 @@ func handleConnection(config *Config, conn net.Conn) {
 }
 
 func listenForever(config *Config, l net.Listener) {
-	for  {
+	for {
 		log.Printf("Serve starting")
 
 		conn, err := l.Accept()
@@ -258,22 +259,19 @@ type TagService struct {
 	client *Client
 }
 
-func (t *TagService) Put(name string, key *v2.Key) {
-	err := t.client.Set(name, key)
-	if err != nil {
-		panic(err.Error())
-	}
+func (t *TagService) Put(name string, key *v2.Key) error {
+	return t.client.Set(name, key)
 }
 
-func (t *TagService) Get(name string) *v2.Key {
+func (t *TagService) Get(name string) (*v2.Key, error) {
 	key, err := t.client.Get(name)
 	if err != nil {
 		if err.Error() == NO_SUCH_KEY.Error() {
-			return nil
+			return nil, nil
 		}
-		panic(err.Error())
+		return nil, err
 	}
-	return key
+	return key, nil
 }
 
 func (t *TagService) ForEach(callback func(name string, key *v2.Key)) {

@@ -2,6 +2,7 @@ package v2
 
 import (
 	"fmt"
+
 	. "gopkg.in/check.v1"
 	//	"testing"
 
@@ -30,7 +31,7 @@ func newCache(c *C) *filesystemCacheDB {
 		panic(err.Error())
 	}
 	cache, _ := NewFilesystemCacheDB(root, db)
-		return cache
+	return cache
 }
 
 func (*AtomicSuite) TestChunkCache(c *C) {
@@ -43,9 +44,9 @@ func (*AtomicSuite) TestChunkCache(c *C) {
 	chunks.Put(&Key{100}, aRes)
 	chunks.Put(&Key{101}, bRes)
 
-	fetched := chunks.Get(&Key{100})
+	fetched, _ := chunks.Get(&Key{100})
 	c.Assert(fetched.AsBytes(), DeepEquals, []byte("A"))
-	fetched = chunks.Get(&Key{101})
+	fetched, _ = chunks.Get(&Key{101})
 	c.Assert(fetched.AsBytes(), DeepEquals, []byte("B"))
 }
 

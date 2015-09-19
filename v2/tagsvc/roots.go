@@ -3,8 +3,9 @@ package tagsvc
 import (
 	"container/heap"
 	"fmt"
-	"github.com/pgm/pliant/v2"
 	"sync"
+
+	"github.com/pgm/pliant/v2"
 )
 
 type Color int
@@ -236,7 +237,8 @@ func (c *Coloring) colorKeys(roots []*v2.Key, chunks v2.ChunkService, dirService
 
 		fmt.Printf("pick gray %s\n", next.String())
 
-		entry := chunks.Get(next)
+		// TODO: handle error
+		entry, _ := chunks.Get(next)
 		if entry == nil {
 			panic("Could not find cache entry for " + next.String())
 		}

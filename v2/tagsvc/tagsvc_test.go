@@ -2,12 +2,13 @@ package tagsvc
 
 import (
 	"fmt"
-	"github.com/golang/protobuf/proto"
-	"github.com/pgm/pliant/v2"
-	. "gopkg.in/check.v1"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/pgm/pliant/v2"
+	. "gopkg.in/check.v1"
 )
 
 type TagSvcSuite struct {
@@ -89,7 +90,7 @@ func (s *TagSvcSuite) TestSimpleGC(c *C) {
 	chunks.Put(&fileKey3, v2.NewMemResource(make([]byte, 1)))
 	dirService := v2.NewLeafDirService(chunks)
 	dir := dirService.GetDirectory(v2.EMPTY_DIR_KEY)
-	dirKey, _ := dir.Put("a", &v2.FileMetadata{Size: proto.Int64(1), Key: fileKey1.AsBytes(), IsDir: proto.Bool(false)})
+	dirKey, _, _ := dir.Put("a", &v2.FileMetadata{Size: proto.Int64(1), Key: fileKey1.AsBytes(), IsDir: proto.Bool(false)})
 	root.Set("1", dirKey)
 
 	fmt.Printf("GC\n")
@@ -131,11 +132,12 @@ func (s *TagSvcSuite) TestClientServer(c *C) {
 	key2 := v2.Key{10}
 	tagSvc := NewTagService(client)
 	tagSvc.Put("label", &key2)
-	vkey := tagSvc.Get("label")
+	vkey, _ := tagSvc.Get("label")
 
 	c.Assert(vkey, DeepEquals, &key2)
 
-	c.Assert(tagSvc.Get("label2"), IsNil)
+	k, _ := tagSvc.Get("label2")
+	c.Assert(k, IsNil)
 
 	l.Close()
 }

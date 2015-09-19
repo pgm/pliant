@@ -3,9 +3,10 @@ package v2
 import (
 	"crypto/sha256"
 	"fmt"
-	"github.com/golang/protobuf/proto"
 	"sort"
 	"strconv"
+
+	"github.com/golang/protobuf/proto"
 )
 
 var EMPTY_DIR = Leaf{entries: make([]*LeafEntry, 0, 10)}
@@ -193,12 +194,15 @@ func PackLeaf(leaf *Leaf) []byte {
 
 }
 
-func (d *LeafDir) readLeaf(key *Key) *Leaf {
+func (d *LeafDir) readLeaf(key *Key) (*Leaf, error) {
 	if *key == *EMPTY_DIR_KEY {
-		return &EMPTY_DIR
+		return &EMPTY_DIR, nil
 	} else {
-		resource := d.chunks.Get(key)
-		return UnpackLeaf(resource.AsBytes())
+		resource, err := d.chunks.Get(key)
+		if err != nil {
+			return nil, err
+		}
+		return UnpackLeaf(resource.AsBytes()), nil
 	}
 }
 
@@ -218,9 +222,12 @@ func computeContentKey(buffer []byte) *Key {
 	return &key
 }
 
-func (d *LeafDir) Get(name string) *FileMetadata {
-	leaf := d.readLeaf(d.key)
-	return leaf.get(name)
+func (d *LeafDir) Get(name string) (*FileMetadata, error) {
+	leaf, err := d.readLeaf(d.key)
+	if err != nil {
+		return nil, err
+	}
+	return leaf.get(name), nil
 }
 
 // create a leaf which only contains the specified metadata and the filenames do not matter
@@ -233,18 +240,21 @@ func CreateAnonymousRefLeaf(chunks ChunkService, metadatas []*FileMetadata) *Key
 	return writeLeaf(chunks, leaf)
 }
 
-func (d *LeafDir) Put(name string, metadata *FileMetadata) (*Key, int64) {
-	leaf := d.readLeaf(d.key)
+func (d *LeafDir) Put(name string, metadata *FileMetadata) (*Key, int64, error) {
+	leaf, err := d.readLeaf(d.key)
+	if err != nil {
+		return nil, 0, err
+	}
 	if metadata == nil {
 		panic(fmt.Sprintf(">>>> metadata = %s\n", metadata))
 	}
 	newLeaf := leaf.insert(&LeafEntry{name: name, metadata: metadata})
 
 	totalSize := newLeaf.GetTotalSize()
-	return d.writeLeaf(newLeaf), totalSize
+	return d.writeLeaf(newLeaf), totalSize, nil
 }
 
-func (d *Leaf) 	GetTotalSize() int64 {
+func (d *Leaf) GetTotalSize() int64 {
 	var totalSize int64
 	for _, e := range d.entries {
 		totalSize += e.metadata.GetTotalSize()
@@ -252,18 +262,24 @@ func (d *Leaf) 	GetTotalSize() int64 {
 	return totalSize
 }
 
-func (d *LeafDir) GetTotalSize() int64 {
-	leaf := d.readLeaf(d.key)
-	return leaf.GetTotalSize()
+func (d *LeafDir) GetTotalSize() (int64, error) {
+	leaf, err := d.readLeaf(d.key)
+	if err != nil {
+		return 0, err
+	}
+	return leaf.GetTotalSize(), nil
 }
 
-func (d *LeafDir) Remove(name string) (*Key, int64) {
-	leaf := d.readLeaf(d.key)
+func (d *LeafDir) Remove(name string) (*Key, int64, error) {
+	leaf, err := d.readLeaf(d.key)
+	if err != nil {
+		return nil, 0, err
+	}
 	newLeaf := leaf.remove(name)
 	if newLeaf == nil {
-		return d.key, leaf.GetTotalSize()
+		return d.key, leaf.GetTotalSize(), nil
 	} else {
-		return d.writeLeaf(newLeaf), newLeaf.GetTotalSize()
+		return d.writeLeaf(newLeaf), newLeaf.GetTotalSize(), nil
 	}
 }
 
@@ -290,7 +306,10 @@ func (it *LeafIterator) Next() (string, *FileMetadata) {
 }
 
 func (d *LeafDir) Iterate() Iterator {
-	leaf := d.readLeaf(d.key)
+	leaf, err := d.readLeaf(d.key)
+	if err != nil {
+		panic(err.Error())
+	}
 	return &LeafIterator{leafIndex: 0, leaf: leaf, reachedEnd: len(leaf.entries) == 0}
 }
 
