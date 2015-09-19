@@ -87,14 +87,17 @@ func (d *Dir) Attr(ctx context.Context, a *fuse.Attr) error {
 }
 
 func (d *Dir) Lookup(ctx context.Context, name string) (fs.Node, error) {
-	var result v2.ListFilesRecord
+	var result v2.StatResponse
 	filename := d.path + "/" + name
 	err := d.client.Call("AtomicClient.Stat", filename, &result)
 	if err != nil {
 		//		return nil, err
 		return nil, fuse.ENOENT
 	}
-	if result.IsDir {
+
+	if result.Error == v2.STAT_ERROR_MISSING {
+		return nil, fuse.ENOENT
+	} else if result.IsDir {
 		fmt.Printf("lookup(%s) -> dir\n", filename)
 		return &Dir{path: filename, client: d.client}, nil
 	} else {

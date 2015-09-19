@@ -104,7 +104,7 @@ func (s *AtomicSuite) TestAtomicFileOps(c *C) {
 	as := NewAtomicState(ds, chunks, cache, tags, roots)
 	ac := &AtomicClient{atomic: as}
 
-	tempFile := "tmpfile"
+	tempFile := c.MkDir() + "/tmpfile"
 	wfile, _ := os.Create(tempFile)
 	wfile.WriteString("test")
 	wfile.Close()
@@ -127,8 +127,40 @@ func (s *AtomicSuite) TestAtomicFileOps(c *C) {
 	c.Assert("test", Equals, string(b))
 }
 
+func (s *AtomicSuite) TestStat(c *C) {
+	cache := newCache(c)
+	chunks := NewChunkCache(NewMemChunkService(), cache)
+	ds := NewLeafDirService(chunks)
+	tags := NewMemTagService()
+	roots := NewMemRootMap()
+	as := NewAtomicState(ds, chunks, cache, tags, roots)
+	ac := &AtomicClient{atomic: as}
+
+	var mkdirResult string
+	ac.MakeDir("a", &mkdirResult)
+
+	tempFile := c.MkDir() + "/tmpfile"
+	wfile, _ := os.Create(tempFile)
+	wfile.WriteString("test")
+	wfile.Close()
+	err := ac.PutLocalPath(&PutLocalPathArgs{LocalPath: tempFile, DestPath: "a/b"}, &mkdirResult)
+	c.Assert(err, Equals, nil)
+
+	var result StatResponse
+	ac.Stat("a", &result)
+	c.Assert(result.IsDir, Equals, true)
+
+	ac.Stat("a/b", &result)
+	c.Assert(result.IsDir, Equals, false)
+
+	ac.Stat("a/c", &result)
+	c.Assert(result.Error, Equals, STAT_ERROR_MISSING)
+
+	ac.Stat("c", &result)
+	c.Assert(result.Error, Equals, STAT_ERROR_MISSING)
+}
+
 func (s *AtomicSuite) TestPush(c *C) {
-	fmt.Printf("TestPush start\n")
 	remoteChunks := NewMemChunkService()
 	tags := NewMemTagService()
 	roots := NewMemRootMap()

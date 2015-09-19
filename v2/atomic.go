@@ -132,26 +132,36 @@ func (ac *AtomicClient) GetKey(path string, key *string) error {
 	return nil
 }
 
+const STAT_ERROR_MISSING = "missing"
+const STAT_ERROR_NONE = ""
+
 type StatResponse struct {
 	Size         int64
 	Key          []byte
 	CreationTime int64
 	IsDir        bool
 	TotalSize    int64
+	Error        string
 }
 
 func (ac *AtomicClient) Stat(path string, result *StatResponse) error {
 	parsedPath := NewPath(path)
 	metadata, err := ac.atomic.GetMetadata(parsedPath)
+	fmt.Printf("Stat() = %s, err=%s\n", metadata, err)
 	if err != nil {
 		return err
 	}
 
-	result.Size = metadata.GetSize()
-	result.Key = metadata.GetKey()
-	result.CreationTime = metadata.GetCreationTime()
-	result.IsDir = metadata.GetIsDir()
-	result.TotalSize = metadata.GetTotalSize()
+	if metadata == nil {
+		result.Error = STAT_ERROR_MISSING
+	} else {
+		result.Size = metadata.GetSize()
+		result.Key = metadata.GetKey()
+		result.CreationTime = metadata.GetCreationTime()
+		result.IsDir = metadata.GetIsDir()
+		result.TotalSize = metadata.GetTotalSize()
+		result.Error = STAT_ERROR_NONE
+	}
 
 	return nil
 }
@@ -595,8 +605,8 @@ func (self *AtomicState) GetDirectoryIterator(path *Path) (Iterator, error) {
 	return finalDir.Iterate(), nil
 }
 
+// returns nil if no file with that path exists
 func (self *AtomicState) GetMetadata(path *Path) (*FileMetadata, error) {
-	fmt.Printf("GetMetadata(%s)\n", path)
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
@@ -611,7 +621,7 @@ func (self *AtomicState) GetMetadata(path *Path) (*FileMetadata, error) {
 
 		meta, ok := self.roots.Get(path.path[0])
 		if !ok {
-			return nil, errors.New("No such path")
+			return nil, NO_SUCH_PATH
 		}
 		return meta, nil
 		//return &FileMetadata{Key: key.AsBytes(), IsDir: proto.Bool(true)}, nil
@@ -622,6 +632,7 @@ func (self *AtomicState) GetMetadata(path *Path) (*FileMetadata, error) {
 		}
 
 		metadata, err := parentDir.Get(filename)
+		fmt.Printf("parentDir.Get(%s)=%s\n", filename, metadata)
 		if err != nil {
 			return nil, err
 		}

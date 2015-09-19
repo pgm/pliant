@@ -53,7 +53,6 @@ func expectArgs(c *cli.Context, hasOptionalAdditional bool, reqArgNames ...strin
 }
 
 func main() {
-	fmt.Printf("main\n")
 	app := cli.NewApp()
 	app.Name = "pliant"
 	app.Usage = "pliant client"
