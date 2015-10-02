@@ -11,7 +11,7 @@ import (
 
 	"github.com/codegangsta/cli"
 	"github.com/pgm/pliant/v2"
-	"github.com/pgm/pliant/v2/s3"
+	"github.com/pgm/pliant/v2/startup"
 	"github.com/pgm/pliant/v2/tagsvc"
 	gcfg "gopkg.in/gcfg.v1"
 )
@@ -115,35 +115,8 @@ func main() {
 				//bindAddr := c.GlobalString("addr")
 				bindAddr := cfg.Minion.PliantServiceAddress
 
-				// contact the master and get the config
-				tagsvcClient := tagsvc.NewClient(cfg.Minion.MasterAddress, []byte(cfg.Minion.AuthSecret))
-				config, err := tagsvcClient.GetConfig()
-				if err != nil {
-					panic(err.Error())
-				}
-
-				if _, err := os.Stat(cfg.Minion.PliantServiceAddress); err == nil {
-					os.Remove(cfg.Minion.PliantServiceAddress)
-				}
-
-				root := cfg.Minion.CachePath
-				_, err = os.Stat(root)
-				if os.IsNotExist(err) {
-					os.MkdirAll(root, 0770)
-				}
-
-				db, err := v2.InitDb(root + "/db.bolt")
-				if err != nil {
-					panic(err.Error())
-				}
-
-				cache, _ := v2.NewFilesystemCacheDB(root, db)
-				tags := tagsvc.NewTagService(tagsvcClient)
-				chunkService := s3.NewS3ChunkService(config.AccessKeyId, config.SecretAccessKey, config.Endpoint, config.Bucket, config.Prefix, cache.AllocateTempFilename)
-				chunks := v2.NewChunkCache(chunkService, cache)
-				ds := v2.NewLeafDirService(chunks)
-				as := v2.NewAtomicState(ds, chunks, cache, tags, v2.NewDbRootMap(db))
-				panicIfError(v2.StartServer(bindAddr, jsonBindAddr, as))
+				completed := startup.StartLocalService(cfg.Minion.PliantServiceAddress, cfg.Minion.AuthSecret, cfg.Minion.PliantServiceAddress, cfg.Minion.CachePath, bindAddr, jsonBindAddr)
+				<-completed
 			},
 		},
 		{

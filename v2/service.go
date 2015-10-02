@@ -6,9 +6,9 @@ import (
 	"net/rpc"
 	"net/rpc/jsonrpc"
 	"os"
-//	"net/http"
-//	"code.google.com/p/go.net/websocket"
-//	"fmt"
+	//	"net/http"
+	//	"code.google.com/p/go.net/websocket"
+	//	"fmt"
 )
 
 func ServerAccept(server *rpc.Server, lis net.Listener) {
@@ -38,7 +38,17 @@ func StartJsonRpc(bindAddr string, ac *AtomicClient) error {
 	return nil
 }
 
-func StartServer(bindAddr string, jsonBindAddr string, atomic Atomic) error {
+func notifyWhenFinished(fn func()) chan int {
+	completed := make(chan int)
+	go (func() {
+		fn()
+		completed <- 1
+	})()
+
+	return completed
+}
+
+func StartServer(bindAddr string, jsonBindAddr string, atomic Atomic) (chan int, error) {
 	ac := AtomicClient{atomic: atomic}
 
 	if jsonBindAddr != "" {
@@ -49,11 +59,13 @@ func StartServer(bindAddr string, jsonBindAddr string, atomic Atomic) error {
 	server.Register(&ac)
 	l, err := net.ListenUnix("unix", &net.UnixAddr{bindAddr, "unix"})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer os.Remove(bindAddr)
 
 	log.Printf("Ready to accept requests via %s\n", bindAddr)
-	server.Accept(l)
-	return nil
+	return notifyWhenFinished(func() {
+		server.Accept(l)
+		os.Remove(bindAddr)
+
+	}), nil
 }
