@@ -45,6 +45,7 @@ func startMount(addr string, mountpoint string) {
 	client := connectToServer(addr)
 	transient := NewTransientClient()
 	filesystem := FS{client: client, transient: transient}
+	transient.fs = &filesystem
 	err = fs.Serve(c, &filesystem)
 	if err != nil {
 		log.Fatal(err)
@@ -135,7 +136,9 @@ func main() {
 type TransientFile struct {
 	lock      sync.Mutex
 	localPath string
+	fullPath  string
 	file      *os.File
+	fs        *FS
 }
 
 type TransientDir struct {
@@ -145,6 +148,7 @@ type TransientDir struct {
 type TransientClient struct {
 	lock  sync.Mutex
 	paths map[string]*TransientDir
+	fs    *FS
 }
 
 func NewTransientClient() *TransientClient {
@@ -155,8 +159,10 @@ func (t *TransientClient) ListFiles(path string) []string {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
+	path = "/" + path
 	dir, found := t.paths[path]
 	if !found {
+		fmt.Printf("Could not find transient dir for \"%s\"\n", path)
 		return nil
 	}
 
@@ -186,16 +192,67 @@ func (t *TransientClient) GetFile(fullPath string) *TransientFile {
 	return file
 }
 
-func (t *TransientClient) CreateFile(path string) (*TransientFile, error) {
+func (t *TransientClient) Remove(fullPath string) error {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	panic("unimp")
+	parent, name := path.Split(fullPath)
+	dir, found := t.paths[parent]
+	if !found {
+		panic("missing")
+	}
+
+	tfile := dir.files[name]
+	fmt.Printf("del paths[%s][%s]\n", parent, name)
+	err := os.Remove(tfile.localPath)
+	delete(dir.files, name)
+	return err
+}
+
+func (t *TransientClient) CreateFile(fullPath string) (*TransientFile, error) {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	f, err := ioutil.TempFile("", "trans")
+	if err != nil {
+		return nil, err
+	}
+
+	parent, name := path.Split(fullPath)
+	dir, found := t.paths[parent]
+	if !found {
+		dir = &TransientDir{files: make(map[string]*TransientFile)}
+		t.paths[parent] = dir
+	}
+
+	tfile := &TransientFile{fullPath: fullPath, localPath: f.Name(), file: f, fs: t.fs}
+	dir.files[name] = tfile
+	fmt.Printf("paths[%s][%s] -> %s\n", parent, name, tfile)
+
+	// file, found :=
+	// if !found {
+	// 	return nil
+	// }
+
+	return tfile, nil
 }
 
 type FS struct {
 	client    *rpc.Client
 	transient *TransientClient
+}
+
+func (f *FS) TransferToPliant(t *TransientFile) error {
+	t.lock.Lock()
+	t.file.Close()
+	t.file = nil
+	t.lock.Unlock()
+
+	var result string
+	f.client.Call("AtomicClient.PutLocalPath", &v2.PutLocalPathArgs{LocalPath: t.localPath, DestPath: t.fullPath}, &result)
+	fmt.Printf("Release(%s) and put as %s\n", t.localPath, t.fullPath)
+
+	return f.transient.Remove(t.fullPath)
 }
 
 func (f *FS) Root() (fs.Node, error) {
@@ -222,12 +279,24 @@ func (d *Dir) Attr(ctx context.Context, a *fuse.Attr) error {
 	return nil
 }
 
+func (d *Dir) Mkdir(ctx context.Context, req *fuse.MkdirRequest) (fs.Node, error) {
+	var key string
+	name := req.Name
+	err := d.fs.client.Call("AtomicClient.MakeDir", name, &key)
+	if err != nil {
+		fmt.Printf("Mkdir of \"%s\" failed: \"%s\", returning no such file\n", name, err.Error())
+		return nil, err
+	}
+
+	return d.Lookup(ctx, name)
+}
+
 func (d *Dir) Lookup(ctx context.Context, name string) (fs.Node, error) {
 	var result v2.StatResponse
 	filename := d.path + "/" + name
 	err := d.fs.client.Call("AtomicClient.Stat", filename, &result)
 	if err != nil {
-		fmt.Printf("Stat failed: %s, returning no such file\n", err.Error())
+		fmt.Printf("Stat of \"%s\" failed: \"%s\", returning no such file\n", filename, err.Error())
 		return nil, fuse.ENOENT
 	}
 
@@ -261,6 +330,7 @@ func (d *Dir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	dirDirs := make([]fuse.Dirent, len(result))
 	for i := 0; i < len(result); i++ {
 		dirDirs[i].Name = result[i].Name
@@ -273,6 +343,7 @@ func (d *Dir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 
 	// merge in transient files
 	transientFiles := d.fs.transient.ListFiles(d.path)
+	fmt.Printf("ListFiles(%s) -> %s\n", d.path, transientFiles)
 	for _, file := range transientFiles {
 		dirDirs = append(dirDirs, fuse.Dirent{Name: file, Type: fuse.DT_File})
 	}
@@ -349,7 +420,11 @@ func (f *TransientFile) Attr(ctx context.Context, a *fuse.Attr) error {
 }
 
 func (f *TransientFile) Forget() {
-	f.file.Close()
+	f.file = nil
+}
+
+func (f *TransientFile) Release(ctx context.Context, req *fuse.ReleaseRequest) error {
+	return f.fs.TransferToPliant(f)
 }
 
 func (d *Dir) Create(ctx context.Context, req *fuse.CreateRequest, resp *fuse.CreateResponse) (fs.Node, fs.Handle, error) {
